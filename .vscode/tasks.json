@@ -1,0 +1,54 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "RH One: Verify frontend toolchain",
+      "type": "shell",
+      "command": "pnpm",
+      "args": [
+        "--version"
+      ],
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "RH One: Install frontend dependencies",
+      "type": "shell",
+      "command": "pnpm",
+      "args": [
+        "install",
+        "--frozen-lockfile"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "RH One: Frontend typecheck",
+      "type": "shell",
+      "command": "pnpm",
+      "args": [
+        "check"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "RH One: Frontend unit tests",
+      "type": "shell",
+      "command": "pnpm",
+      "args": [
+        "test:unit"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "problemMatcher": [],
+      "group": "test"
+    }
+  ]
+}

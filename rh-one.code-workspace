@@ -1,0 +1,38 @@
+{
+  "folders": [
+    {
+      "path": ".",
+      "name": "RH One — SocTalk foundation"
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/.git": true,
+      "**/.venv": true,
+      "**/node_modules": true,
+      "**/.svelte-kit": true,
+      "**/__pycache__": true
+    },
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/.svelte-kit": true,
+      "**/.venv": true,
+      "**/coverage": true
+    },
+    "files.watcherExclude": {
+      "**/node_modules/**": true,
+      "**/.svelte-kit/**": true,
+      "**/.venv/**": true
+    },
+    "git.autofetch": false
+  },
+  "extensions": {
+    "recommendations": [
+      "svelte.svelte-vscode",
+      "ms-python.python",
+      "ms-python.vscode-pylance",
+      "ms-vscode-remote.remote-ssh",
+      "GitHub.vscode-pull-request-github"
+    ]
+  }
+}

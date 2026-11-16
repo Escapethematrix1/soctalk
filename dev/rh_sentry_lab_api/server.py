@@ -195,7 +195,7 @@ class UpdateIncident(BaseModel):
 
 class SubmitSyntheticScenario(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    scenarioId: Literal["impossible-travel", "encoded-powershell", "ordinary-signins", "partial-auth"]
+    scenarioId: Literal["impossible-travel", "encoded-powershell", "ordinary-signins", "partial-auth", "wazuh-ssh-burst", "wazuh-ssh-benign"]
     idempotencyKey: str = Field(min_length=12, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
 
 

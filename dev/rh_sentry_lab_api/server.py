@@ -351,6 +351,182 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
         audit(actor, tenant_id, "incidents:read", "allowed", incident_id)
         return incident_json(row)
 
+
+    # RH Sentry local incident-management proof of concept:
+    # All mutations require a server-authenticated analyst and session-bound CSRF.
+    # The original SocTalk API and all live systems remain untouched.
+
+    @app.get("/api/tenants/{tenant_id}/analysts")
+    def tenant_analysts(tenant_id: str, actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "analysts:list")
+        with connect(db_path) as db:
+            rows = db.execute(
+                "SELECT m.username, m.role FROM memberships m "
+                "JOIN identities i ON i.username=m.username "
+                "WHERE m.tenant_id=? AND m.active=1 AND i.active=1 "
+                "AND m.role IN ('soc_analyst','soc_lead') ORDER BY m.username",
+                (tenant_id,),
+            ).fetchall()
+        audit(actor, tenant_id, "analysts:list", "allowed")
+        return {"tenantId": tenant_id, "items": [
+            {"username": r["username"], "role": r["role"]} for r in rows
+        ]}
+
+    @app.patch("/api/tenants/{tenant_id}/incidents/{incident_id}")
+    def change_incident(
+        tenant_id: str, incident_id: str, body: UpdateIncident,
+        actor: str = Depends(csrf_actor),
+    ):
+        analyst_scope(actor, tenant_id, "incident:update")
+        supplied = body.model_fields_set & {"status", "assignedTo"}
+        if not supplied or ("status" in supplied and body.status is None):
+            raise HTTPException(422, "Provide a new status or an assignment.")
+        if "assignedTo" in supplied and body.assignedTo is not None and not body.assignedTo.strip():
+            raise HTTPException(422, "Empty assignee is not valid; use null to clear.")
+
+        with connect(db_path) as db:
+            db.execute("BEGIN IMMEDIATE")  # Serialize competing local updates.
+            current = db.execute(
+                "SELECT id,tenant_id,title,severity,status,version,assigned_to FROM incidents "
+                "WHERE tenant_id=? AND id=?", (tenant_id, incident_id),
+            ).fetchone()
+            if not current:
+                raise HTTPException(404, "Not found.")
+            if current["version"] != body.expectedVersion:
+                raise HTTPException(409, "Incident changed. Refresh before saving.")
+            new_status = body.status if "status" in supplied else current["status"]
+            new_assignee = body.assignedTo if "assignedTo" in supplied else current["assigned_to"]
+            if new_status != current["status"] and new_status not in ALLOWED_TRANSITIONS.get(current["status"], set()):
+                raise HTTPException(409, "Invalid status transition for this case.")
+            if new_assignee is not None:
+                assignee = db.execute(
+                    "SELECT 1 FROM memberships m JOIN identities i ON i.username=m.username "
+                    "WHERE m.username=? AND m.tenant_id=? AND m.active=1 AND i.active=1 "
+                    "AND m.role IN ('soc_analyst','soc_lead')",
+                    (new_assignee, tenant_id),
+                ).fetchone()
+                if not assignee:
+                    raise HTTPException(422, "Select an active analyst assigned to this organisation.")
+            if new_status == current["status"] and new_assignee == current["assigned_to"]:
+                raise HTTPException(422, "No incident changes were submitted.")
+            modified = db.execute(
+                "UPDATE incidents SET status=?, assigned_to=?, version=version+1 "
+                "WHERE tenant_id=? AND id=? AND version=?",
+                (new_status, new_assignee, tenant_id, incident_id, body.expectedVersion),
+            )
+            if modified.rowcount != 1:
+                raise HTTPException(409, "Incident changed. Refresh before saving.")
+            new_version = body.expectedVersion + 1
+            at = datetime.now(timezone.utc).isoformat()
+            detail = (
+                f"status:{current['status']}->{new_status}; "
+                f"assigned_to:{current['assigned_to'] or 'unassigned'}->{new_assignee or 'unassigned'}"
+            )
+            db.execute(
+                "INSERT INTO incident_history(tenant_id,incident_id,actor,action,detail,version,occurred_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (tenant_id, incident_id, actor, "case_updated", detail, new_version, at),
+            )
+            db.execute(
+                "INSERT INTO audit_events(actor,tenant_id,operation,outcome,target,occurred_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (actor, tenant_id, "incident:update", "allowed", incident_id, at),
+            )
+            updated = db.execute(
+                "SELECT id,tenant_id,title,severity,status,version,assigned_to FROM incidents "
+                "WHERE tenant_id=? AND id=?", (tenant_id, incident_id),
+            ).fetchone()
+            return incident_json(updated)
+
+    @app.post("/api/tenants/{tenant_id}/incidents/{incident_id}/evidence", status_code=201)
+    def add_evidence(
+        tenant_id: str, incident_id: str, body: AddEvidenceNote,
+        actor: str = Depends(csrf_actor),
+    ):
+        analyst_scope(actor, tenant_id, "evidence:create")
+        # Only plain-text synthetic analyst notes; no links, file upload,
+        # markup, executable artefacts or network fetches are supported.
+        note = body.note.strip()
+        if len(note) < 5 or any(x in note.lower() for x in
+              ("http://", "https://", "file://", "javascript:", "data:")) or "<" in note or ">" in note:
+            raise HTTPException(422, "Only plain-text lab notes without URLs or markup are accepted.")
+        with connect(db_path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            current = db.execute(
+                "SELECT version FROM incidents WHERE tenant_id=? AND id=?",
+                (tenant_id, incident_id),
+            ).fetchone()
+            if not current:
+                raise HTTPException(404, "Not found.")
+            if current["version"] != body.expectedVersion:
+                raise HTTPException(409, "Incident changed. Refresh before saving.")
+            now = datetime.now(timezone.utc).isoformat()
+            record = db.execute(
+                "INSERT INTO incident_evidence(tenant_id,incident_id,actor,kind,note,created_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (tenant_id, incident_id, actor, "analyst_note", note, now),
+            )
+            updated = db.execute(
+                "UPDATE incidents SET version=version+1 WHERE tenant_id=? AND id=? AND version=?",
+                (tenant_id, incident_id, body.expectedVersion),
+            )
+            if updated.rowcount != 1:
+                raise HTTPException(409, "Incident changed. Refresh before saving.")
+            version = body.expectedVersion + 1
+            db.execute(
+                "INSERT INTO incident_history(tenant_id,incident_id,actor,action,detail,version,occurred_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (tenant_id, incident_id, actor, "evidence_added", f"Analyst note #{record.lastrowid} added.", version, now),
+            )
+            db.execute(
+                "INSERT INTO audit_events(actor,tenant_id,operation,outcome,target,occurred_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (actor, tenant_id, "evidence:create", "allowed", incident_id, now),
+            )
+            return {"id": record.lastrowid, "incidentId": incident_id, "tenantId": tenant_id,
+                    "kind": "analyst_note", "note": note, "actor": actor, "createdAt": now, "version": version}
+
+    @app.get("/api/tenants/{tenant_id}/incidents/{incident_id}/evidence")
+    def list_evidence(tenant_id: str, incident_id: str, actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "evidence:list")
+        with connect(db_path) as db:
+            incident = db.execute(
+                "SELECT 1 FROM incidents WHERE tenant_id=? AND id=?", (tenant_id, incident_id),
+            ).fetchone()
+            if not incident:
+                raise HTTPException(404, "Not found.")
+            rows = db.execute(
+                "SELECT id,actor,kind,note,created_at FROM incident_evidence "
+                "WHERE tenant_id=? AND incident_id=? ORDER BY id DESC LIMIT 100",
+                (tenant_id, incident_id),
+            ).fetchall()
+        audit(actor, tenant_id, "evidence:list", "allowed", incident_id)
+        return {"tenantId": tenant_id, "incidentId": incident_id, "items": [
+            {"id": r["id"], "actor": r["actor"], "kind": r["kind"],
+             "note": r["note"], "createdAt": r["created_at"]} for r in rows
+        ]}
+
+    @app.get("/api/tenants/{tenant_id}/incidents/{incident_id}/history")
+    def incident_history(tenant_id: str, incident_id: str, actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "history:list")
+        with connect(db_path) as db:
+            incident = db.execute(
+                "SELECT 1 FROM incidents WHERE tenant_id=? AND id=?", (tenant_id, incident_id),
+            ).fetchone()
+            if not incident:
+                raise HTTPException(404, "Not found.")
+            rows = db.execute(
+                "SELECT id,actor,action,detail,version,occurred_at FROM incident_history "
+                "WHERE tenant_id=? AND incident_id=? ORDER BY id DESC LIMIT 100",
+                (tenant_id, incident_id),
+            ).fetchall()
+        audit(actor, tenant_id, "history:list", "allowed", incident_id)
+        return {"tenantId": tenant_id, "incidentId": incident_id, "items": [
+            {"id": r["id"], "actor": r["actor"], "action": r["action"],
+             "detail": r["detail"], "version": r["version"],
+             "occurredAt": r["occurred_at"]} for r in rows
+        ]}
+
     @app.get("/api/lab/audit")
     def audit_history(actor: str = Depends(current_actor)):
         if actor != "lab-auditor":

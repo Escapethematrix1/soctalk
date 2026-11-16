@@ -574,6 +574,132 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
              "occurredAt": r["occurred_at"]} for r in rows
         ]}
 
+    # Isolated, synthetic-only event pipeline. All ingested event content is
+    # generated server-side from a fixed catalogue; user-provided telemetry,
+    # external URLs, arbitrary commands and file uploads are not accepted.
+
+    @app.get("/api/tenants/{tenant_id}/lab/scenarios")
+    def list_synthetic_scenarios(tenant_id: str, actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "synthetic:scenarios")
+        return {"tenantId": tenant_id, "items": scenario_catalogue(), "liveIngestion": False}
+
+    @app.post("/api/tenants/{tenant_id}/lab/scenarios/ingest", status_code=201)
+    def ingest_synthetic_scenario(
+        tenant_id: str, body: SubmitSyntheticScenario, response: Response,
+        actor: str = Depends(csrf_actor),
+    ):
+        analyst_scope(actor, tenant_id, "synthetic:ingest")
+        # An idempotency token is scoped to an authenticated tenant.
+        # It cannot be used to smuggle arbitrary logs or choose an incident.
+        with connect(db_path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing = db.execute(
+                "SELECT id,scenario_id FROM synthetic_event_batches "
+                "WHERE tenant_id=? AND idempotency_key=?",
+                (tenant_id, body.idempotencyKey),
+            ).fetchone()
+            if existing is not None:
+                if existing["scenario_id"] != body.scenarioId:
+                    raise HTTPException(409, "Idempotency token belongs to another scenario.")
+                response.status_code = 200
+                return {
+                    "tenantId": tenant_id, "batchId": existing["id"],
+                    "scenarioId": existing["scenario_id"], "replayed": True,
+                }
+            # Bound disk growth in this temporary localhost lab.
+            count = db.execute(
+                "SELECT COUNT(*) AS n FROM synthetic_event_batches WHERE tenant_id=?",
+                (tenant_id,),
+            ).fetchone()["n"]
+            if count >= 50:
+                raise HTTPException(429, "Local synthetic batch limit reached for this tenant.")
+            events, matches = generate_scenario(body.scenarioId, tenant_id)
+            now = datetime.now(timezone.utc).isoformat()
+            batch_id = db.execute(
+                "INSERT INTO synthetic_event_batches "
+                "(tenant_id,idempotency_key,scenario_id,submitted_by,created_at) "
+                "VALUES (?,?,?,?,?)",
+                (tenant_id, body.idempotencyKey, body.scenarioId, actor, now),
+            ).lastrowid
+            event_ids = []
+            for event in events:
+                event_ids.append(db.execute(
+                    "INSERT INTO synthetic_events "
+                    "(batch_id,tenant_id,event_type,occurred_at,source,actor,host,description,attributes_json) "
+                    "VALUES (?,?,?,?,?,?,?,?,?)",
+                    (batch_id, tenant_id, event["event_type"], event["occurred_at"],
+                     event["source"], event["actor"], event["host"], event["description"],
+                     json.dumps(event["attributes"], sort_keys=True)),
+                ).lastrowid)
+            for match in matches:
+                correlation_id = db.execute(
+                    "INSERT INTO synthetic_correlations "
+                    "(batch_id,tenant_id,rule_id,title,explanation,case_id,created_at) "
+                    "VALUES (?,?,?,?,?,?,?)",
+                    (batch_id, tenant_id, match["rule_id"], match["title"],
+                     match["explanation"], match["case_id"], now),
+                ).lastrowid
+                db.executemany(
+                    "INSERT INTO synthetic_correlation_events(correlation_id,event_id) VALUES (?,?)",
+                    ((correlation_id, event_ids[index]) for index in match["event_offsets"]),
+                )
+            db.execute(
+                "INSERT INTO audit_events(actor,tenant_id,operation,outcome,target,occurred_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (actor, tenant_id, "synthetic:ingest", "allowed", f"batch:{batch_id}", now),
+            )
+            return {
+                "tenantId": tenant_id, "batchId": batch_id,
+                "scenarioId": body.scenarioId, "replayed": False,
+                "eventCount": len(event_ids), "correlationCount": len(matches),
+            }
+
+    @app.get("/api/tenants/{tenant_id}/lab/events")
+    def synthetic_event_list(tenant_id: str, actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "synthetic:events:list")
+        with connect(db_path) as db:
+            rows = db.execute(
+                "SELECT id,batch_id,event_type,occurred_at,source,actor,host,description,attributes_json "
+                "FROM synthetic_events WHERE tenant_id=? ORDER BY id DESC LIMIT 100",
+                (tenant_id,),
+            ).fetchall()
+        audit(actor, tenant_id, "synthetic:events:list", "allowed")
+        return {"tenantId": tenant_id, "items": [{
+            "id": row["id"], "batchId": row["batch_id"], "eventType": row["event_type"],
+            "occurredAt": row["occurred_at"], "source": row["source"],
+            "actor": row["actor"], "host": row["host"],
+            "description": row["description"], "attributes": json.loads(row["attributes_json"]),
+        } for row in rows], "liveTelemetry": False}
+
+    @app.get("/api/tenants/{tenant_id}/lab/correlations")
+    def synthetic_correlation_list(tenant_id: str, actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "synthetic:correlations:list")
+        with connect(db_path) as db:
+            rows = db.execute(
+                "SELECT id,batch_id,rule_id,title,explanation,case_id,created_at "
+                "FROM synthetic_correlations WHERE tenant_id=? ORDER BY id DESC LIMIT 100",
+                (tenant_id,),
+            ).fetchall()
+            items = []
+            for row in rows:
+                # Explicit tenant check via joined event record prevents a
+                # foreign event reference being surfaced in the wrong tenant.
+                links = db.execute(
+                    "SELECT e.id FROM synthetic_correlation_events ce "
+                    "JOIN synthetic_events e ON e.id=ce.event_id "
+                    "WHERE ce.correlation_id=? AND e.tenant_id=? ORDER BY e.id",
+                    (row["id"], tenant_id),
+                ).fetchall()
+                items.append({
+                    "id": row["id"], "batchId": row["batch_id"],
+                    "ruleId": row["rule_id"], "title": row["title"],
+                    "explanation": row["explanation"], "caseId": row["case_id"],
+                    "eventIds": [link["id"] for link in links],
+                    "createdAt": row["created_at"],
+                })
+        audit(actor, tenant_id, "synthetic:correlations:list", "allowed")
+        return {"tenantId": tenant_id, "items": items, "liveDetection": False}
+
     @app.get("/api/lab/audit")
     def audit_history(actor: str = Depends(current_actor)):
         if actor != "lab-auditor":

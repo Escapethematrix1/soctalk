@@ -225,6 +225,34 @@ Local API instructions and acceptance test sequence are in [dev/rh_sentry_lab_ap
 
 GitHub Actions runs Python API tests and Svelte/TypeScript checks on the development branch. This is only a lab milestone; it does not imply production-grade authentication, encrypted customer storage, tamper-evident audit or independent penetration testing.
 
+## Stage 10 — Local API cases in the main SOC workspaces
+
+The **Incidents** and **AI Analyst** sections each have an explicit data-source switch:
+
+- **Simulation:** the original interactive, hypothetical incident/AI-response demonstration remains unchanged. All sample graphs, customer portfolio, AI example reasoning and response prototypes continue to use browser-only fixtures.
+- **Local API / SQLite:** a new tenant-scoped workspace reads fictional incident records from \`http://127.0.0.1:8001\`. The server validates the session and membership on each query; the UI never mixes these records into the simulated AI or Response Centre.
+- **Incident management:** authorised sample analysts can change statuses, assign cases and write plain-text evidence notes using the existing server-enforced, CSRF-protected case editor.
+- **AI Analyst in local mode:** this is deliberately titled **human analyst casework**. It shows the same persistent incident, stored notes and change history, but *does not invent AI findings* or route local records into the prewritten AI demo.
+- **Cross-links:** a persistent case can be opened in the companion local incident/analyst workspace, preserving customer and case selection. Existing detection-rule links continue opening the independent simulation.
+- **Session:** the CSRF token returned by an explicit login in **API Lab** lives only in the current Svelte preview page's memory. The token is handed to the main workspaces while the page remains mounted; it is never persisted to \`localStorage\` or included in a URL. After a full browser refresh, the cookie may remain valid for read-only viewing, but analyst edits require logging in again from **API Lab**.
+- **No data leakage by fallback:** unauthenticated/expired sessions, offline API or unknown tenant membership show an explicit status rather than silently switching to simulated data.
+
+### To try this milestone
+
+Keep the separate Python backend running at port **8001** and the frontend at **5173**:
+
+1. In VS Code, from the repo root run \`git status --short\` then \`git pull --ff-only origin dev/rh-one\` (preserve any uncommitted work before pulling).
+2. Refresh the local Svelte preview at \`http://127.0.0.1:5173/sentry-preview\`. No Python/backend restart or schema migration is needed for this frontend-only milestone.
+3. Open **API Lab**, log in as fictional \`alderwick-analyst\` with your existing temporary local password.
+4. Open **Incidents → Local API / SQLite**. You should see exactly the authorised Alderwick cases, including the status and assignment you previously saved.
+5. Open one case and select **Open analyst casework**. The AI Analyst section should show the same stored case, its evidence-note journal and case history. It must not claim that an AI model examined anything.
+6. Return to **Incidents**. Log out in **API Lab**, then revisit local mode. Incident records should no longer load without an authenticated cookie.
+7. Sign in as fictional \`alderwick-viewer\`; only a read-only case summary should appear. No local analyst-note access should be available.
+8. Switch back to **Simulation** and confirm all original demo screens still work.
+
+**Validation:** GitHub Actions ran \`pnpm check\` and the RH Sentry unit tests successfully on the development branch. Real browser navigation must still be exercised on the user's own laptop. No real client records or AI/SIEM services are connected.
+
+
 ## Future phases (not implemented yet)
 
 1. Refine the RH Sentry interface and approved brand assets.

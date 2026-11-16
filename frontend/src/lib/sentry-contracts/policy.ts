@@ -47,9 +47,18 @@ export function checkScopedAccess(
 	// Strict fail-closed rule: never derive a tenant from a selected UI view,
 	// an untrusted query parameter, or a missing/default scope.
 	if (!tenantId?.trim()) return { allowed: false, reason: 'Explicit tenant context is required.' };
-	const membership = activeMembership(identity, tenantId);
-	if (!membership) return { allowed: false, reason: 'No active membership for the requested tenant.' };
-	if (!rolePermissions[membership.role].includes(permission)) {
+	const activeMatches = identity.memberships.filter((membership) =>
+		membership.active && membership.tenantId === tenantId
+	);
+	if (activeMatches.length === 0) {
+		return { allowed: false, reason: 'No active membership for the requested tenant.' };
+	}
+	if (activeMatches.length !== 1) {
+		return { allowed: false, reason: 'Ambiguous duplicate memberships; deny until reconciled.' };
+	}
+	const membership = activeMatches[0];
+	if (!Object.prototype.hasOwnProperty.call(rolePermissions, membership.role) ||
+		!rolePermissions[membership.role]?.includes(permission)) {
 		return { allowed: false, reason: 'The tenant membership does not allow that operation.' };
 	}
 	return { allowed: true, reason: 'Active tenant membership grants the requested permission.' };

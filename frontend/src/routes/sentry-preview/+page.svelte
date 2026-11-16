@@ -4,10 +4,11 @@
 	import ResponseCentre from '$lib/components/sentry/ResponseCentre.svelte';
 	import DetectionEngineering from '$lib/components/sentry/DetectionEngineering.svelte';
 	import PlatformSecurity from '$lib/components/sentry/PlatformSecurity.svelte';
+	import ApiLab from '$lib/components/sentry/ApiLab.svelte';
 	import type { DemoIncident as Incident, Severity, IncidentStatus as Status } from '$lib/sentry-demo/types';
 	// RH Sentry product-design sandbox. Deliberately no API calls, credentials,
 	// external network operations, or real-world response actions.
-	type View = 'Overview' | 'Customers' | 'Incidents' | 'AI Analyst' | 'Response Centre' | 'Detection Engineering' | 'Security Architecture' | 'Assets' | 'Reports';
+	type View = 'Overview' | 'Customers' | 'Incidents' | 'AI Analyst' | 'Response Centre' | 'Detection Engineering' | 'Security Architecture' | 'API Lab' | 'Assets' | 'Reports';
 	const seed: Incident[] = [
 		{
 			id: 'SEN-2048',
@@ -103,6 +104,7 @@
 		{ name: 'Response Centre', short: 'RC', description: 'Review and response' },
 		{ name: 'Detection Engineering', short: 'DE', description: 'Rules and coverage' },
 		{ name: 'Security Architecture', short: 'SA', description: 'SaaS access and policy' },
+		{ name: 'API Lab', short: 'LB', description: 'Local backend integration' },
 		{ name: 'Assets', short: 'AS', description: 'Environment coverage' },
 		{ name: 'Reports', short: 'RP', description: 'Security intelligence' }
 	];
@@ -239,7 +241,7 @@
 				<div>
 					<div class="eyebrow">RED HORIZON / DEFENSIVE INTELLIGENCE</div>
 					<h1>{view === 'Overview' ? 'Command Centre' : view}</h1>
-					<p>{view === 'Overview' ? 'A single view of the signals that matter. Investigate with context. Respond with control.' : view === 'Incidents' ? 'Prioritised investigations and evidence-first incident management.' : view === 'Customers' ? 'Manage customer context, scoped incident views and the future SaaS experience.' : view === 'AI Analyst' ? 'Intelligence that explains its reasoning and keeps analysts in control.' : view === 'Response Centre' ? 'Review proposed defensive actions, control approvals and explore sample response playbooks.' : view === 'Detection Engineering' ? 'Explore example detection rules, validate synthetic events and understand monitoring blind spots.' : view === 'Security Architecture' ? 'Design customer boundaries, least-privilege access and human response approval policies.' : view === 'Assets' ? 'A clear view of the systems your future SOC will protect.' : 'Decision-ready intelligence for security leaders and clients.'}</p>
+					<p>{view === 'Overview' ? 'A single view of the signals that matter. Investigate with context. Respond with control.' : view === 'Incidents' ? 'Prioritised investigations and evidence-first incident management.' : view === 'Customers' ? 'Manage customer context, scoped incident views and the future SaaS experience.' : view === 'AI Analyst' ? 'Intelligence that explains its reasoning and keeps analysts in control.' : view === 'Response Centre' ? 'Review proposed defensive actions, control approvals and explore sample response playbooks.' : view === 'Detection Engineering' ? 'Explore example detection rules, validate synthetic events and understand monitoring blind spots.' : view === 'Security Architecture' ? 'Design customer boundaries, least-privilege access and human response approval policies.' : view === 'API Lab' ? 'Explore the isolated localhost API with fictional customer identities, persistent records and server-side tenant checks.' : view === 'Assets' ? 'A clear view of the systems your future SOC will protect.' : 'Decision-ready intelligence for security leaders and clients.'}</p>
 				</div>
 				<div class="heading-actions">
 					<button type="button" class="button-secondary" on:click={() => selectView('Reports')}>View briefing <span>↗</span></button>
@@ -370,6 +372,10 @@
 
 			{#if view === 'Security Architecture'}
 				<PlatformSecurity />
+			{/if}
+
+			{#if view === 'API Lab'}
+				<ApiLab />
 			{/if}
 
 			{#if view === 'Assets'}

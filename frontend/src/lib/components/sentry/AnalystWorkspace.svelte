@@ -6,7 +6,7 @@
 	export let selectedId: string;
 
 	type Panel = 'Findings' | 'Evidence' | 'Response';
-	export type DemoDecision = 'Reviewed — proposed' | 'Rejected — no action';
+	type DemoDecision = 'Reviewed — proposed' | 'Rejected — no action';
 	const panels: Panel[] = ['Findings', 'Evidence', 'Response'];
 	let panel: Panel = 'Findings';
 	let search = '';

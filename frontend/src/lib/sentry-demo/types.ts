@@ -4,6 +4,8 @@ export type IncidentStatus = 'Investigating' | 'Awaiting review' | 'Contained' |
 
 export interface DemoIncident {
 	id: string;
+	/** Fictional customer reference used only by the local UI demo. */
+	tenantId?: string;
 	title: string;
 	category: string;
 	asset: string;

@@ -23,6 +23,7 @@
 	let busy = false;
 	let status = '';
 	let tenants: Tenant[] = [];
+	let permittedTenants: Tenant[] = [];
 	let tenantId = '';
 	let incidents: Incident[] = [];
 	let audit: AuditEntry[] = [];
@@ -65,12 +66,15 @@
 			sessionUser = me.user;
 			const result = await callApi('/api/tenants');
 			tenants = result.items as Tenant[];
-			tenantId = tenants[0]?.id ?? '';
+			const allowedIds = new Set((me.memberships as {tenantId: string; role: string}[]).map((x) => x.tenantId));
+			permittedTenants = tenants.filter((tenant) => allowedIds.has(tenant.id));
+			tenantId = permittedTenants[0]?.id ?? '';
 			if (tenantId) await loadIncidents();
 			else incidents = [];
 		} catch (error) {
 			sessionUser = '';
 			tenants = [];
+			permittedTenants = [];
 			tenantId = '';
 			incidents = [];
 			throw error;
@@ -109,6 +113,7 @@
 			csrf = '';
 			sessionUser = '';
 			tenants = [];
+			permittedTenants = [];
 			incidents = [];
 			audit = [];
 			tenantId = '';
@@ -178,7 +183,8 @@
 					<pre>cd dev\rh_sentry_lab_api
 py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-$env:RH_SENTRY_LAB_PASSWORD = Read-Host "Create temporary lab password"
+$secret = Read-Host "Create temporary lab password" -AsSecureString
+$env:RH_SENTRY_LAB_PASSWORD = [System.Net.NetworkCredential]::new("", $secret).Password
 .\.venv\Scripts\python.exe run.py</pre>
 					<p>Use a unique password of at least 16 characters. Keep it local and never use real customer credentials. You can then select a fictional user below and enter the same temporary password.</p>
 				</div>
@@ -204,13 +210,13 @@ $env:RH_SENTRY_LAB_PASSWORD = Read-Host "Create temporary lab password"
 			<div class="panel-heading"><div><span class="eyebrow">SERVER-ENFORCED TENANT QUERY</span><h2>Incident records</h2></div><span class="demo-label">SYNTHETIC DATA</span></div>
 			{#if !sessionUser}
 				<div class="placeholder"><span aria-hidden="true">⌁</span><h3>No authenticated session</h3><p>Log in with a fictional identity to retrieve incidents from the local SQLite database. The browser cannot choose or invent a tenant membership.</p></div>
-			{:else if !tenants.length}
+			{:else if !permittedTenants.length}
 				<div class="placeholder"><span aria-hidden="true">◇</span><h3>No tenant membership</h3><p>The selected lab identity can view organisation metadata only, not customer incident records.</p></div>
 			{:else}
 				<div class="tenant-selector">
 					<label for="lab-tenant">AUTHORISED TENANT</label>
 					<select id="lab-tenant" bind:value={tenantId} on:change={loadIncidents}>
-						{#each tenants as t}<option value={t.id}>{t.name}</option>{/each}
+						{#each permittedTenants as t}<option value={t.id}>{t.name}</option>{/each}
 					</select>
 				</div>
 				<div class="incidents">

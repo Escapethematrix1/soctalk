@@ -14,7 +14,8 @@ This folder exists to test the first real HTTP and SQLite boundaries before desi
 - Fictional identities and memberships resolved server-side
 - SQL queries scoped to owning tenant, with 404 for unauthorised cross-tenant requests
 - Persistent *fictional* incident records and lab audit entries, stored in local SQLite
-- No executable response endpoints; only GET, login and logout
+- Read-only customer incident access plus **analyst-only** status changes, assignment and plain-text evidence notes, with CSRF and concurrency checks
+- No endpoint isolation, account revocation, script execution or other real SOC response actions
 - Python tests covering session, tenancy, CSRF, audit and persistence
 
 **Important limitations:** The fictional accounts share a single developer-supplied password. Cookie Secure is false because the server uses loopback HTTP. Access controls and audit are educational examples, not security-reviewed production systems; no OIDC/MFA, HTTPS, lifecycle management, real RBAC administration, tamper-evident audit, rate limiting across processes, or verified SIEM is provided.
@@ -35,6 +36,8 @@ $env:RH_SENTRY_LAB_PASSWORD = [System.Net.NetworkCredential]::new("", $secret).P
 \`\`\`
 
 Use a unique lab password you can retype in the preview. **Never reuse a business login.** If \`py -3\` isn't found, install a supported Python 3.11–3.13 interpreter for Windows first. The app uses Python 3.11+ typing features.
+
+**Already running the API?** After pulling, stop the backend using Ctrl+C and restart it from the same PowerShell terminal using the existing `run.py` command. The environment password remains available in that PowerShell session. The database schema migrates non-destructively, preserving existing synthetic records.
 
 The local lab reads/writes only \`%USERPROFILE%\.rh-sentry-lab\sentry-lab.sqlite3\` by default; you can override this with \`RH_SENTRY_LAB_DB\` for disposable tests. The database location is outside the Git repository and stays on your device. To stop the API press Ctrl+C in its terminal.
 
@@ -74,3 +77,26 @@ The browser cannot submit arbitrary identities or grant itself permissions. The 
 Move to a private Red Horizon repository; replace the shared lab password with production-grade OIDC sessions, MFA and role lifecycle; migrate to a properly governed data store; enforce tenant ownership in all queries and workers; introduce durable audit and session revocation; perform independent isolation and security testing; only then integrate SIEM telemetry or AI.
 
 No Wazuh, real AI, managed security monitoring or response execution is connected by this project.
+
+## Persistent incident-management milestone
+
+The browser now supports an analyst-only case editor with status changes, assignment, evidence notes and versioned history stored in local SQLite:
+
+- `PATCH /api/tenants/{tenantId}/incidents/{incidentId}` — analyst-only status and assignment; requires CSRF and current `expectedVersion`.
+- `GET /api/tenants/{tenantId}/analysts` — analysts in the same synthetic tenant.
+- `POST /api/tenants/{tenantId}/incidents/{incidentId}/evidence` — analyst-only plain-text note (5–1000 characters), with expected version. No uploads, URLs or markup.
+- `GET /api/tenants/{tenantId}/incidents/{incidentId}/evidence` — analyst-only note history.
+- `GET /api/tenants/{tenantId}/incidents/{incidentId}/history` — analyst-only versioned case changes.
+
+Each successful change atomically updates the incident version, records the case event and adds a local audit entry. Outdated versions receive **409**; cross-tenant requests return **404**; customer viewers cannot modify cases (**403**). These safeguards are tested only in the isolated lab.
+
+### Try the new screen
+
+1. Sign out of `alderwick-viewer` in **API Lab**.
+2. Sign in as `alderwick-analyst` using the same temporary lab password.
+3. Select `SEN-2047`, change its status from **triage** to **investigating**, and optionally assign `alderwick-lead`.
+4. Add a fictional investigation note; check the Evidence Register and Change History.
+5. Restart the API and confirm the case changes persist.
+6. Sign in as `alderwick-viewer`; the case stays visible but editing and internal analyst notes are unavailable.
+
+**Never use genuine client records or secrets here.** The local SQLite file is not encrypted or governed for real customer information.

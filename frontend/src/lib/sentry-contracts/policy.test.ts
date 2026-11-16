@@ -83,7 +83,7 @@ describe('RH Sentry illustrative dual-response review policy', () => {
 	});
 	it('a rejection vetoes approval, including if the approvers both approved earlier', () => {
 		const result = checkDemoProposalReadiness(proposal, [
-			approval(lead.actorId), approval(customer.actorId), approval(viewer.actorId, 'alderwick', 'reject')
+			approval(lead.actorId), approval(customer.actorId), approval(customer.actorId, 'alderwick', 'reject')
 		], identities, now);
 		expect(result.ready).toBe(false);
 	});

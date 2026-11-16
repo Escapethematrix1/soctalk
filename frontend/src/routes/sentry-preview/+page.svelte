@@ -6,8 +6,9 @@
 	import PlatformSecurity from '$lib/components/sentry/PlatformSecurity.svelte';
 	import ApiLab from '$lib/components/sentry/ApiLab.svelte';
 	import type { DemoIncident as Incident, Severity, IncidentStatus as Status } from '$lib/sentry-demo/types';
-	// RH Sentry product-design sandbox. Deliberately no API calls, credentials,
-	// external network operations, or real-world response actions.
+	// RH Sentry product-design sandbox. Core modules use simulated data.
+	// The optional API Lab is explicitly local-only; no real-world SOC response
+	// actions, production accounts, or live security integrations are connected.
 	type View = 'Overview' | 'Customers' | 'Incidents' | 'AI Analyst' | 'Response Centre' | 'Detection Engineering' | 'Security Architecture' | 'API Lab' | 'Assets' | 'Reports';
 	const seed: Incident[] = [
 		{

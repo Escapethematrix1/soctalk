@@ -97,6 +97,7 @@
 			timeline: ['09:05 · Heartbeat missed', '09:12 · Monitoring health alert', '09:14 · Agent reconnected']
 		}
 	];
+	const severities: (Severity | 'All')[] = ['All', 'Critical', 'High', 'Medium', 'Low'];
 	const nav: { name: View; short: string; description: string }[] = [
 		{ name: 'Overview', short: 'OV', description: 'Command centre' },
 		{ name: 'Incidents', short: 'IN', description: 'Detection queue' },
@@ -288,7 +289,7 @@
 						<div class="list-toolbar">
 							<label class="search-wrapper"><span class="sr-only">Search demonstration incidents</span><span aria-hidden="true">⌕</span><input type="search" bind:value={search} placeholder="Search investigations, assets..." /></label>
 							<div class="filters" aria-label="Filter by severity">
-								{#each (['All', 'Critical', 'High', 'Medium', 'Low'] as const) as category}
+								{#each severities as category}
 									<button type="button" class:filter-active={filter === category} aria-pressed={filter === category} on:click={() => (filter = category)}>{category}</button>
 								{/each}
 							</div>
@@ -358,10 +359,8 @@
 </div>
 
 <style>
-	:global(html), :global(body) { min-height: 100%; }
-	:global(body) { margin: 0; background: #090d14 !important; color: #edf1f7; }
-	:global(body), .sentry-shell, .sentry-shell button, .sentry-shell input { font-family: Inter, 'Segoe UI', Arial, sans-serif; }
-	:global(*) { box-sizing: border-box; }
+	.sentry-shell, .sentry-shell button, .sentry-shell input { font-family: Inter, 'Segoe UI', Arial, sans-serif; }
+	.sentry-shell :global(*) { box-sizing: border-box; }
 	.sentry-shell { --ink: #edf1f7; --muted: #8994a5; --accent: #e33247; --line: #242c39; --panel: #111823; display: flex; min-height: 100vh; background: #090d14; color: var(--ink); font-size: 14px; }
 	.sentry-shell button { cursor: pointer; }
 	.sentry-shell button:focus-visible, .sentry-shell input:focus-visible { outline: 2px solid #f06a77; outline-offset: 3px; }

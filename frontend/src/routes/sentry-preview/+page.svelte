@@ -1,12 +1,14 @@
 <script lang="ts">
 	import AnalystWorkspace from '$lib/components/sentry/AnalystWorkspace.svelte';
+	import CustomerPortfolio from '$lib/components/sentry/CustomerPortfolio.svelte';
 	import type { DemoIncident as Incident, Severity, IncidentStatus as Status } from '$lib/sentry-demo/types';
 	// RH Sentry product-design sandbox. Deliberately no API calls, credentials,
 	// external network operations, or real-world response actions.
-	type View = 'Overview' | 'Incidents' | 'AI Analyst' | 'Assets' | 'Reports';
+	type View = 'Overview' | 'Customers' | 'Incidents' | 'AI Analyst' | 'Assets' | 'Reports';
 	const seed: Incident[] = [
 		{
 			id: 'SEN-2048',
+			tenantId: 'northbridge',
 			title: 'Impossible travel authentication',
 			category: 'Identity & access',
 			asset: 'M365 / alex.morgan@demo.invalid',
@@ -20,6 +22,7 @@
 		},
 		{
 			id: 'SEN-2047',
+			tenantId: 'northbridge',
 			title: 'Suspicious PowerShell execution',
 			category: 'Endpoint activity',
 			asset: 'WIN-DEMO-07',
@@ -33,6 +36,7 @@
 		},
 		{
 			id: 'SEN-2046',
+			tenantId: 'summit',
 			title: 'Multiple blocked inbound connections',
 			category: 'Network defence',
 			asset: 'FW-EDGE-DEMO-01',
@@ -46,6 +50,7 @@
 		},
 		{
 			id: 'SEN-2045',
+			tenantId: 'harbourline',
 			title: 'Unexpected mailbox forwarding rule',
 			category: 'Email security',
 			asset: 'M365 / finance@demo.invalid',
@@ -59,6 +64,7 @@
 		},
 		{
 			id: 'SEN-2044',
+			tenantId: 'harbourline',
 			title: 'New privileged group membership',
 			category: 'Identity & access',
 			asset: 'ENTRA-DEMO',
@@ -72,6 +78,7 @@
 		},
 		{
 			id: 'SEN-2043',
+			tenantId: 'summit',
 			title: 'Endpoint security agent heartbeat delay',
 			category: 'Agent health',
 			asset: 'LNX-DEMO-03',
@@ -87,6 +94,7 @@
 	const severities: (Severity | 'All')[] = ['All', 'Critical', 'High', 'Medium', 'Low'];
 	const nav: { name: View; short: string; description: string }[] = [
 		{ name: 'Overview', short: 'OV', description: 'Command centre' },
+		{ name: 'Customers', short: 'CU', description: 'SaaS customer portfolio' },
 		{ name: 'Incidents', short: 'IN', description: 'Detection queue' },
 		{ name: 'AI Analyst', short: 'AI', description: 'Investigative intelligence' },
 		{ name: 'Assets', short: 'AS', description: 'Environment coverage' },
@@ -133,6 +141,7 @@
 		demoCount += 1;
 		const item: Incident = {
 			id: 'SEN-LAB-' + String(demoCount).padStart(3, '0'),
+			tenantId: 'northbridge',
 			title: 'Simulated unusual DNS activity',
 			category: 'Network defence',
 			asset: 'LNX-DEMO-03',
@@ -214,7 +223,7 @@
 				<div>
 					<div class="eyebrow">RED HORIZON / DEFENSIVE INTELLIGENCE</div>
 					<h1>{view === 'Overview' ? 'Command Centre' : view}</h1>
-					<p>{view === 'Overview' ? 'A single view of the signals that matter. Investigate with context. Respond with control.' : view === 'Incidents' ? 'Prioritised investigations and evidence-first incident management.' : view === 'AI Analyst' ? 'Intelligence that explains its reasoning and keeps analysts in control.' : view === 'Assets' ? 'A clear view of the systems your future SOC will protect.' : 'Decision-ready intelligence for security leaders and clients.'}</p>
+					<p>{view === 'Overview' ? 'A single view of the signals that matter. Investigate with context. Respond with control.' : view === 'Incidents' ? 'Prioritised investigations and evidence-first incident management.' : view === 'Customers' ? 'Manage customer context, scoped incident views and the future SaaS experience.' : view === 'AI Analyst' ? 'Intelligence that explains its reasoning and keeps analysts in control.' : view === 'Assets' ? 'A clear view of the systems your future SOC will protect.' : 'Decision-ready intelligence for security leaders and clients.'}</p>
 				</div>
 				<div class="heading-actions">
 					<button type="button" class="button-secondary" on:click={() => selectView('Reports')}>View briefing <span>↗</span></button>
@@ -320,6 +329,10 @@
 						<p class="footnote">*Illustrative value only; not produced by a model.</p>
 					</section>
 				</div>
+			{/if}
+
+			{#if view === 'Customers'}
+				<CustomerPortfolio {incidents} />
 			{/if}
 
 			{#if view === 'AI Analyst'}

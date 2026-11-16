@@ -45,6 +45,14 @@ SCENARIOS: dict[str, dict[str, str]] = {
         "name": "Incomplete sign-in telemetry",
         "description": "One fictional login with missing distance context. No positive correlation.",
     },
+    "wazuh-ssh-burst": {
+        "name": "Wazuh-format SSH failure burst",
+        "description": "Three fabricated Wazuh JSON alerts, normalized and matched by agent, rule, source and time.",
+    },
+    "wazuh-ssh-benign": {
+        "name": "Wazuh-format single SSH failure",
+        "description": "One fabricated Wazuh alert; insufficient evidence for a burst correlation.",
+    },
 }
 
 
@@ -83,6 +91,12 @@ def generate_scenario(
             "description": description,
             "attributes": attributes,
         }
+
+    if scenario_id in ("wazuh-ssh-burst", "wazuh-ssh-benign"):
+        # Deferred import avoids a circular reference with the fixture schema
+        # and lets the existing synthetic ingestion endpoint keep its contract.
+        from wazuh_fixture_adapter import build_wazuh_synthetic_scenario
+        return build_wazuh_synthetic_scenario(scenario_id, base)
 
     if scenario_id == "impossible-travel":
         events = [

@@ -228,8 +228,8 @@
 <div class="sentry-shell">
 	<aside class={"sidebar" + (menuOpen ? " mobile-open" : "")} aria-label="RH Sentry sections">
 		<div class="sidebar-brand">
-			<div class="brand-overline">RED HORIZON / CYBER GROUP</div>
-			<div class="brand-name">RH <span>SENTRY</span><span class="brand-dot">.</span></div>
+			<div class="brand-overline">RED HORIZON CYBER GROUP</div>
+			<div class="brand-name"><span class="brand-r">R</span><span class="brand-h">H</span> <span class="brand-word">SENTRY</span><span class="brand-dot">.</span></div>
 			<div class="brand-subtitle">SECURITY OPERATIONS PLATFORM</div>
 		</div>
 		<div class="sidebar-section-label">WORKSPACE</div>
@@ -459,15 +459,17 @@
 	.sentry-shell { --ink: #edf1f7; --muted: #8994a5; --accent: #e33247; --line: #242c39; --panel: #111823; display: flex; min-height: 100vh; background: #090d14; color: var(--ink); font-size: 14px; }
 	.sentry-shell button { cursor: pointer; }
 	.sentry-shell button:focus-visible, .sentry-shell input:focus-visible { outline: 2px solid #f06a77; outline-offset: 3px; }
-	.sidebar { width: 260px; flex: 0 0 260px; min-height: 100vh; border-right: 1px solid #202633; background: #0c111a; padding: 32px 17px 20px; display: flex; flex-direction: column; position: sticky; top: 0; align-self: flex-start; height: 100vh; }
+	.sidebar { width: 260px; flex: 0 0 260px; min-height: 0; border-right: 1px solid #202633; background: #0c111a; padding: 32px 17px 20px; display: flex; flex-direction: column; position: sticky; top: 0; align-self: flex-start; height: 100vh; height: 100dvh; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; scrollbar-width: thin; scrollbar-color: #394455 #0c111a; }
 	.sidebar-brand { padding: 4px 10px 52px; }
 	.brand-overline { color: #858f9f; font-size: 9px; font-weight: 800; letter-spacing: .19em; margin-bottom: 14px; }
 	.brand-name { font-size: 28px; font-weight: 850; letter-spacing: -.065em; line-height: 1; color: #f8f9fc; white-space: nowrap; }
-	.brand-name span:first-child { font-weight: 500; letter-spacing: .04em; }
+	.brand-name .brand-r { color: #e33247; }
+	.brand-name .brand-h { color: #f8f9fc; }
+	.brand-name .brand-word { color: #f8f9fc; font-weight: 500; letter-spacing: .04em; }
 	.brand-name .brand-dot { color: #e33247; letter-spacing: 0; }
 	.brand-subtitle { font-size: 9px; font-weight: 700; letter-spacing: .13em; color: #9da7b5; margin-top: 11px; }
 	.sidebar-section-label { font-size: 10px; color: #677386; letter-spacing: .16em; font-weight: 800; padding: 0 15px 17px; }
-	.sidebar-nav { display: flex; flex-direction: column; gap: 5px; }
+	.sidebar-nav { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
 	.sidebar-nav button { border: 1px solid transparent; text-align: left; border-radius: 9px; display: flex; align-items: center; gap: 12px; padding: 13px 11px; background: transparent; color: #8f9cac; transition: background .2s, border-color .2s; width: 100%; }
 	.sidebar-nav button:hover { background: #18202d; }
 	.sidebar-nav button.active { color: white; border-color: #502736; background: linear-gradient(95deg, #3a1925 0%, #1a1924 100%); }

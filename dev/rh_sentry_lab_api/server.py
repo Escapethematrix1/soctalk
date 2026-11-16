@@ -13,11 +13,12 @@ import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 COOKIE = "rh_sentry_lab_session"
 SESSION_SECONDS = 3600
@@ -28,6 +29,7 @@ TENANTS = [("alderwick", "Alderwick Logistics"), ("harbourline", "Harbourline Le
 # runtime via environment variable. Not acceptable for a commercial product.
 ACCOUNTS = [
     ("alderwick-analyst", "soc_analyst", "alderwick"),
+    ("alderwick-lead", "soc_lead", "alderwick"),
     ("alderwick-viewer", "customer_viewer", "alderwick"),
     ("harbourline-viewer", "customer_viewer", "harbourline"),
     ("summit-viewer", "customer_viewer", "summit"),
@@ -89,7 +91,38 @@ def init_database(db_path: Path):
           target TEXT, occurred_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS incidents_tenant_idx ON incidents(tenant_id);
+        CREATE TABLE IF NOT EXISTS incident_evidence (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tenant_id TEXT NOT NULL,
+          incident_id TEXT NOT NULL,
+          actor TEXT NOT NULL,
+          kind TEXT NOT NULL CHECK(kind = 'analyst_note'),
+          note TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY(incident_id,tenant_id) REFERENCES incidents(id,tenant_id)
+        );
+        CREATE TABLE IF NOT EXISTS incident_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tenant_id TEXT NOT NULL,
+          incident_id TEXT NOT NULL,
+          actor TEXT NOT NULL,
+          action TEXT NOT NULL,
+          detail TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          occurred_at TEXT NOT NULL,
+          FOREIGN KEY(incident_id,tenant_id) REFERENCES incidents(id,tenant_id)
+        );
+        CREATE INDEX IF NOT EXISTS evidence_tenant_incident ON incident_evidence(tenant_id,incident_id);
+        CREATE INDEX IF NOT EXISTS history_tenant_incident ON incident_history(tenant_id,incident_id);
         """)
+        # Non-destructive migration for existing local lab DBs. Never reset
+        # seeded cases or remove prior demo audit records.
+        incident_fields = {row["name"] for row in db.execute("PRAGMA table_info(incidents)")}
+        if "version" not in incident_fields:
+            db.execute("ALTER TABLE incidents ADD COLUMN version INTEGER NOT NULL DEFAULT 1")
+        if "assigned_to" not in incident_fields:
+            db.execute("ALTER TABLE incidents ADD COLUMN assigned_to TEXT")
+
         db.executemany("INSERT OR IGNORE INTO tenants VALUES (?,?)", TENANTS)
         db.executemany("INSERT OR IGNORE INTO identities VALUES (?,1)",
                        ((u,) for u, _, _ in ACCOUNTS))
@@ -101,6 +134,40 @@ def init_database(db_path: Path):
 class Login(BaseModel):
     username: str = Field(min_length=3, max_length=60)
     password: str = Field(min_length=1, max_length=256)
+
+
+IncidentStatus = Literal["triage", "investigating", "contained", "closed"]
+ALLOWED_TRANSITIONS: dict[str, set[str]] = {
+    "triage": {"investigating"},
+    "investigating": {"triage", "contained"},
+    "contained": {"closed", "investigating"},
+    "closed": {"investigating"},
+}
+
+
+class UpdateIncident(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expectedVersion: int = Field(ge=1)
+    status: IncidentStatus | None = None
+    assignedTo: str | None = Field(default=None, max_length=60)
+
+
+class AddEvidenceNote(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expectedVersion: int = Field(ge=1)
+    note: str = Field(min_length=5, max_length=1000)
+
+
+def incident_json(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "tenantId": row["tenant_id"],
+        "title": row["title"],
+        "severity": row["severity"],
+        "status": row["status"],
+        "version": row["version"],
+        "assignedTo": row["assigned_to"],
+    }
 
 
 def create_app(db_path: Path, lab_password: str) -> FastAPI:
@@ -159,7 +226,7 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
             raise HTTPException(401, "Authentication required.")
         return str(row["username"])
 
-    def scoped(actor: str, tenant: str, operation: str):
+    def scoped(actor: str, tenant: str, operation: str) -> str:
         with connect(db_path) as db:
             membership = db.execute(
                 "SELECT role FROM memberships WHERE username=? AND tenant_id=? AND active=1",
@@ -171,6 +238,14 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
         if membership["role"] not in ("soc_analyst", "soc_lead", "customer_viewer", "customer_admin"):
             audit(actor, tenant, operation, "denied")
             raise HTTPException(403, "Forbidden.")
+        return str(membership["role"])
+
+    def analyst_scope(actor: str, tenant: str, operation: str) -> None:
+        role = scoped(actor, tenant, operation)
+        if role not in ("soc_analyst", "soc_lead"):
+            audit(actor, tenant, operation, "denied")
+            raise HTTPException(403, "Analyst role required.")
+
 
     def csrf_actor(request: Request):
         origin_allowed(request)
@@ -255,14 +330,11 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
         scoped(actor, tenant_id, "incidents:list")
         with connect(db_path) as db:
             rows = db.execute(
-                "SELECT id,tenant_id,title,severity,status FROM incidents "
+                "SELECT id,tenant_id,title,severity,status,version,assigned_to FROM incidents "
                 "WHERE tenant_id=? ORDER BY id DESC", (tenant_id,),
             ).fetchall()
         audit(actor, tenant_id, "incidents:list", "allowed")
-        return {"tenantId": tenant_id, "items": [
-            {"id": r["id"], "tenantId": r["tenant_id"], "title": r["title"],
-             "severity": r["severity"], "status": r["status"]} for r in rows
-        ]}
+        return {"tenantId": tenant_id, "items": [incident_json(r) for r in rows]}
 
     @app.get("/api/tenants/{tenant_id}/incidents/{incident_id}")
     def incident_detail(tenant_id: str, incident_id: str,
@@ -270,14 +342,14 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
         scoped(actor, tenant_id, "incidents:read")
         with connect(db_path) as db:
             row = db.execute(
-                "SELECT id,tenant_id,title,severity,status FROM incidents "
+                "SELECT id,tenant_id,title,severity,status,version,assigned_to FROM incidents "
                 "WHERE tenant_id=? AND id=?", (tenant_id, incident_id),
             ).fetchone()
         if not row:
             audit(actor, tenant_id, "incidents:read", "not_found", incident_id)
             raise HTTPException(404, "Not found.")
         audit(actor, tenant_id, "incidents:read", "allowed", incident_id)
-        return dict(row) | {"tenantId": row["tenant_id"]}
+        return incident_json(row)
 
     @app.get("/api/lab/audit")
     def audit_history(actor: str = Depends(current_actor)):

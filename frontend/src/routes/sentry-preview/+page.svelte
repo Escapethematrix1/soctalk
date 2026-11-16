@@ -2,10 +2,11 @@
 	import AnalystWorkspace from '$lib/components/sentry/AnalystWorkspace.svelte';
 	import CustomerPortfolio from '$lib/components/sentry/CustomerPortfolio.svelte';
 	import ResponseCentre from '$lib/components/sentry/ResponseCentre.svelte';
+	import DetectionEngineering from '$lib/components/sentry/DetectionEngineering.svelte';
 	import type { DemoIncident as Incident, Severity, IncidentStatus as Status } from '$lib/sentry-demo/types';
 	// RH Sentry product-design sandbox. Deliberately no API calls, credentials,
 	// external network operations, or real-world response actions.
-	type View = 'Overview' | 'Customers' | 'Incidents' | 'AI Analyst' | 'Response Centre' | 'Assets' | 'Reports';
+	type View = 'Overview' | 'Customers' | 'Incidents' | 'AI Analyst' | 'Response Centre' | 'Detection Engineering' | 'Assets' | 'Reports';
 	const seed: Incident[] = [
 		{
 			id: 'SEN-2048',
@@ -99,6 +100,7 @@
 		{ name: 'Incidents', short: 'IN', description: 'Detection queue' },
 		{ name: 'AI Analyst', short: 'AI', description: 'Investigative intelligence' },
 		{ name: 'Response Centre', short: 'RC', description: 'Review and response' },
+		{ name: 'Detection Engineering', short: 'DE', description: 'Rules and coverage' },
 		{ name: 'Assets', short: 'AS', description: 'Environment coverage' },
 		{ name: 'Reports', short: 'RP', description: 'Security intelligence' }
 	];
@@ -138,6 +140,12 @@
 	function selectView(next: View) {
 		view = next;
 		menuOpen = false;
+	}
+	function openLinkedDetectionIncident(id: string) {
+		selectedId = id;
+		filter = 'All';
+		search = '';
+		selectView('Incidents');
 	}
 	function openInvestigation(id: string) {
 		selectedId = id;
@@ -229,7 +237,7 @@
 				<div>
 					<div class="eyebrow">RED HORIZON / DEFENSIVE INTELLIGENCE</div>
 					<h1>{view === 'Overview' ? 'Command Centre' : view}</h1>
-					<p>{view === 'Overview' ? 'A single view of the signals that matter. Investigate with context. Respond with control.' : view === 'Incidents' ? 'Prioritised investigations and evidence-first incident management.' : view === 'Customers' ? 'Manage customer context, scoped incident views and the future SaaS experience.' : view === 'AI Analyst' ? 'Intelligence that explains its reasoning and keeps analysts in control.' : view === 'Response Centre' ? 'Review proposed defensive actions, control approvals and explore sample response playbooks.' : view === 'Assets' ? 'A clear view of the systems your future SOC will protect.' : 'Decision-ready intelligence for security leaders and clients.'}</p>
+					<p>{view === 'Overview' ? 'A single view of the signals that matter. Investigate with context. Respond with control.' : view === 'Incidents' ? 'Prioritised investigations and evidence-first incident management.' : view === 'Customers' ? 'Manage customer context, scoped incident views and the future SaaS experience.' : view === 'AI Analyst' ? 'Intelligence that explains its reasoning and keeps analysts in control.' : view === 'Response Centre' ? 'Review proposed defensive actions, control approvals and explore sample response playbooks.' : view === 'Detection Engineering' ? 'Explore example detection rules, validate synthetic events and understand monitoring blind spots.' : view === 'Assets' ? 'A clear view of the systems your future SOC will protect.' : 'Decision-ready intelligence for security leaders and clients.'}</p>
 				</div>
 				<div class="heading-actions">
 					<button type="button" class="button-secondary" on:click={() => selectView('Reports')}>View briefing <span>↗</span></button>
@@ -253,6 +261,11 @@
 					<div class="metric"><div class="metric-label">HIGH-SEVERITY CASES <span>◆</span></div><div class="metric-value">{highCases.toString().padStart(2, '0')}<span class="metric-inline">alerts</span></div><div class="metric-foot">Synthetic prioritisation results</div></div>
 					<div class="metric"><div class="metric-label">MONITORED ASSETS <span>◉</span></div><div class="metric-value">00<span class="metric-inline">live</span></div><div class="metric-foot"><span class="mini-dot amber"></span> 6 sample assets in demo</div></div>
 				</section>
+
+				<div class="coverage-quicklink">
+					<div><span class="coverage-key">DETECTION & MONITORING</span><strong>Coverage design needs connected sources</strong><p>Six example rules are ready to explore, but zero detection rules or telemetry sources are live.</p></div>
+					<button type="button" on:click={() => selectView('Detection Engineering')}>Explore detection engineering ↗</button>
+				</div>
 
 				<div class="dashboard-grid">
 					<section class="panel signals-panel">
@@ -347,6 +360,10 @@
 
 			{#if view === 'Response Centre'}
 				<ResponseCentre {incidents} {analysed} bind:decisions bind:selectedId onInvestigate={openInvestigation} />
+			{/if}
+
+			{#if view === 'Detection Engineering'}
+				<DetectionEngineering onOpenIncident={openLinkedDetectionIncident} />
 			{/if}
 
 			{#if view === 'Assets'}
@@ -543,6 +560,12 @@
 	.roadmap li::marker { color: #e64a5b; }
 	.product-footer { display: flex; justify-content: space-between; gap: 15px; font-size: 9px; color: #667488; letter-spacing: .11em; margin-top: 38px; padding-top: 20px; border-top: 1px solid #202938; font-weight: 800; }
 	.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+	.coverage-quicklink { background: #17202c; border: 1px solid #364052; border-radius: 9px; display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 18px 22px; margin-bottom: 22px; }
+	.coverage-key { font-size: 10px; font-weight: 800; letter-spacing: .12em; color: #e47483; display: block; margin-bottom: 9px; }
+	.coverage-quicklink strong { font-size: 14px; color: #eff3fa; }
+	.coverage-quicklink p { color: #9aacbd; font-size: 11px; line-height: 1.7; margin: 5px 0 0; }
+	.coverage-quicklink button { border: 1px solid #784351; border-radius: 6px; padding: 12px; background: #3b2732; color: #f5c6cf; cursor: pointer; font-size: 11px; font-weight: 800; flex-shrink: 0; }
+	@media (max-width: 700px) { .coverage-quicklink { flex-direction: column; align-items: flex-start; } }
 	@media (max-width: 1260px) {
 		.sidebar { width: 222px; flex-basis: 222px; }
 		main { padding: 30px 26px; }

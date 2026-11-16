@@ -1,0 +1,46 @@
+name: RH Sentry frontend preview checks
+
+on:
+  push:
+    branches: ['dev/rh-one']
+    paths:
+      - 'frontend/src/lib/components/sentry/**'
+      - 'frontend/src/lib/sentry-contracts/**'
+      - 'frontend/src/lib/sentry-demo/**'
+      - 'frontend/src/routes/sentry-preview/**'
+      - '.github/workflows/rh-sentry-frontend.yml'
+  pull_request:
+    paths:
+      - 'frontend/src/lib/components/sentry/**'
+      - 'frontend/src/lib/sentry-contracts/**'
+      - 'frontend/src/lib/sentry-demo/**'
+      - 'frontend/src/routes/sentry-preview/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview-check:
+    name: Svelte and RH Sentry unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install frozen frontend dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck Svelte frontend
+        run: pnpm check
+      - name: Test RH Sentry preview contracts
+        run: pnpm exec vitest run src/lib/sentry-contracts src/lib/sentry-demo

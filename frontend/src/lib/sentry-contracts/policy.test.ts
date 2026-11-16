@@ -59,6 +59,17 @@ describe('RH Sentry proposed tenant policy (not production enforcement)', () => 
 		expect(checkScopedAccess(inactive, 'alderwick', 'responses:approve').allowed).toBe(false);
 		expect(checkScopedAccess(lead, 'alderwick', 'rules:write').allowed).toBe(true);
 	});
+	it('denies duplicate active memberships and unexpected runtime role values', () => {
+		const duplicate: IdentityContext = { ...lead, memberships: [
+			{ tenantId: 'alderwick', role: 'soc_lead', active: true },
+			{ tenantId: 'alderwick', role: 'soc_analyst', active: true }
+		] };
+		expect(checkScopedAccess(duplicate, 'alderwick', 'incidents:read').allowed).toBe(false);
+		const unknownRole = { ...lead, memberships: [
+			{ tenantId: 'alderwick', role: 'unrecognised_role', active: true }
+		] } as unknown as IdentityContext;
+		expect(checkScopedAccess(unknownRole, 'alderwick', 'incidents:read').allowed).toBe(false);
+	});
 	it('simulated fixture filtering does not include another tenant or unassigned records', () => {
 		const records = [{ id: '1', tenantId: 'alderwick' }, { id: '2', tenantId: 'summit' }, { id: '3', tenantId: '' }];
 		expect(filterTenantFixture(records, 'alderwick').map((x) => x.id)).toEqual(['1']);

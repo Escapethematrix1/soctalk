@@ -99,7 +99,22 @@ Before opening RH Sentry to outside users:
 
 AI output is untrusted analysis, not authority. All claims must cite stored tenant-scoped evidence, include time/source provenance and express missing information. The model must not receive other tenants' data, must not be able to invoke destructive tools without external enforcement, and must be tested for prompt injection in log content, false-confidence claims, data exfiltration and unsafe proposed actions.
 
-## 8. Suggested implementation order (not begun)
+## 8. Local backend foundation: implemented as a lab only
+
+A standalone, optional development service now lives at [dev/rh_sentry_lab_api](dev/rh_sentry_lab_api/README.md).
+
+- FastAPI listens on localhost port 8001 using a fixed loopback launcher.
+- Fictional user sessions, tenant memberships, incident records and request journals are stored locally.
+- Tenant-owned incidents are queried server-side with the tenant ID in SQL.
+- No trusted identity comes from a request body or a client-chosen role.
+- Unit/integration tests demonstrate 401 unauthenticated, 404 cross-tenant reads, CSRF logout and SQLite persistence.
+- A dedicated read-only GitHub Actions workflow runs the Python API tests.
+
+**Do not interpret this proof-of-concept as production implementation of the earlier architectural requirements.** The lab uses a temporary shared developer password across sample accounts, local HTTP cookies, a small SQLite database and no production IdP. It has no privileged response executors, no real customers and no telemetry. Its test suite is narrower than an independent security review.
+
+The production feature roadmap below remains outstanding and should be implemented in Red Horizon's own private repository.
+
+## 9. Suggested production implementation order (not begun)
 
 1. Move product-specific work to a private repository under Red Horizon's control.
 2. Choose real identity provider and database topology. Finalise schemas and API permissions before wiring any live data.

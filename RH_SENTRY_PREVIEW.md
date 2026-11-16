@@ -165,6 +165,32 @@ If \`git status --short\` shows uncommitted work, preserve it before pulling. Th
 **Important:** GitHub commits have been verified. ChatGPT has not executed \`pnpm check\`, \`pnpm test:unit\`, or browser acceptance tests on the user's local computer. Confirm those before adding the next milestone.
 
 
+## Stage 7 — SaaS security architecture preview
+
+A new **Security Architecture** sidebar section illustrates the backend security model RH Sentry will need before real customers or telemetry are connected:
+
+- **Access policy**: choose a fictitious actor, organisation and operation; see a deterministic example of allow/deny policy.
+- **Response authorisation**: toggle example SOC lead and customer-admin approvals and test the dual-approval gate.
+- **Data contracts**: view proposed identity, incident, response proposal and audit-event shapes, together with the missing backend implementation steps.
+- **Policy tests**: missing sessions, inactive memberships, cross-customer access, platform-admin isolation, approvals, expiry and rejection scenarios.
+- Detailed baseline: [RH_SENTRY_SECURITY_ARCHITECTURE.md](RH_SENTRY_SECURITY_ARCHITECTURE.md).
+
+**These are only generic policy semantics and sample user interfaces, not production access controls.** Client-side decisions are never a security boundary. There is still no authenticated API, tenant-isolated database, secure audit service, SOC executor or connected identity provider. We cannot market the current prototype as secure SaaS.
+
+For local verification run:
+
+\`\`\`powershell
+cd ..
+git status --short
+git pull --ff-only origin dev/rh-one
+cd frontend
+pnpm check
+pnpm test:unit
+\`\`\`
+
+If \`git status --short\` shows changes, safeguard them before updating. In your local browser open \`http://127.0.0.1:5173/sentry-preview\`, choose **Security Architecture**, and test role/tenant denial plus both review toggles. These commands have **not yet been executed** on the user's laptop by ChatGPT.
+
+
 ## Future phases (not implemented yet)
 
 1. Refine the RH Sentry interface and approved brand assets.

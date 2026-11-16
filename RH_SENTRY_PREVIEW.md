@@ -39,6 +39,36 @@ All incidents, security metrics, assets and AI confidence percentages are **fict
 - Do not connect production customer accounts or real confidential logs to this prototype.
 - Some existing SocTalk routes may still show backend connection failures until its backend is configured; those failures do not affect this isolated preview.
 
+
+## Stage 2 — AI Analyst workbench (added)
+
+The **AI Analyst** section now provides:
+
+- A searchable investigation queue with selectable sample cases.
+- A preauthored investigative question, working hypothesis, benign alternative and explicit evidence gaps.
+- A sample evidence register, verification steps and illustrative ATT&CK context.
+- A human review screen with approve/reject decisions that update **only local Svelte component state**. They do not transmit anything, execute endpoint changes or grant real privileges.
+- Case-specific run/decision state that remains while switching between RH Sentry preview sections; **Reset demo** clears it.
+
+**These are deterministic examples, not an operational AI analyst.** No model, Wazuh ingestion, backend, real customers, alerts, agent enrollment, audit persistence or response service is connected.
+
+### Refresh the project after this commit
+
+If your VS Code terminal currently ends in \`...\soctalk\frontend\`, run:
+
+\`\`\`powershell
+cd ..
+git pull --ff-only origin dev/rh-one
+cd frontend
+pnpm check
+pnpm test:unit
+\`\`\`
+
+The test suite includes new RH Sentry investigation-contract tests. If \`pnpm check\` reports errors, do not proceed to integration; capture the full output for debugging.
+
+Keep or start one Vite server with \`pnpm dev --host 127.0.0.1\`, then open \`http://127.0.0.1:5173/sentry-preview\`.
+
+
 ## Future phases (not implemented yet)
 
 1. Refine the RH Sentry interface and approved brand assets.

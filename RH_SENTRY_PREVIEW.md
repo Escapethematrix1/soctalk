@@ -191,6 +191,25 @@ pnpm test:unit
 If \`git status --short\` shows changes, safeguard them before updating. In your local browser open \`http://127.0.0.1:5173/sentry-preview\`, choose **Security Architecture**, and test role/tenant denial plus both review toggles. These commands have **not yet been executed** on the user's laptop by ChatGPT.
 
 
+## Stage 8 — Local-only authenticated API lab
+
+A new **API Lab** sidebar screen connects *optionally* to a separate Python/FastAPI server running at \`http://127.0.0.1:8001\`. The original SocTalk backend is still unchanged. Details and Windows setup instructions: [dev/rh_sentry_lab_api/README.md](dev/rh_sentry_lab_api/README.md).
+
+**Development features, fictional data only:**
+
+- User must start the API and supply a temporary local password (no default credentials).
+- Server-issued opaque HttpOnly cookies with one-hour expiry, same-site restriction and hashed session storage.
+- Session-bound CSRF token on logout, fixed dev-origin CORS checks and explicit loopback binding.
+- Five fictional identities with server-side membership lookup.
+- SQLite-backed tenant-scoped incident list/detail reads; cross-tenant access returns 404.
+- Persistent local journal of allowed and denied read operations; fictitious auditor can inspect it.
+- Python tests for unauthenticated and cross-tenant denial, CSRF, local session revocation, records and audit persistence.
+
+**Not implemented or claimed:** real IAM, MFA, production-strength sessions, tenant isolation for SocTalk's existing APIs, incident writes, tamper-resistant audit, real detection, live SIEM, AI inference or response execution. This sample service is **not deployable for paying customers**.
+
+Test the Python module separately using \`python -m pytest -q tests\` within \`dev/rh_sentry_lab_api\`. The Svelte screen remains available without running the Python API; it will show that the API is offline. Frontend \`pnpm check\` and \`pnpm test:unit\` still need to run locally after pulling the branch. **No production deployment has been made.**
+
+
 ## Future phases (not implemented yet)
 
 1. Refine the RH Sentry interface and approved brand assets.

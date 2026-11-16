@@ -92,20 +92,23 @@ export function checkDemoProposalReadiness(
 		return fail('The original proposer is not authorised for this tenant.');
 	}
 	const relevant = decisions.filter((d) => d.proposalId === proposal.id && d.tenantId === proposal.tenantId);
-	// A single explicit rejection vetoes the proposal.
-	if (relevant.some((d) => d.decision === 'reject')) return fail('A reviewer rejected this proposed action.');
 	if (relevant.some((d) => !d.actorId || !Number.isFinite(Date.parse(d.occurredAt)) ||
 		Date.parse(d.occurredAt) < created || Date.parse(d.occurredAt) > now)) {
 		return fail('A decision timestamp or actor is invalid.');
 	}
-	const valid = relevant.filter((d) => d.decision === 'approve')
+	const valid = relevant
 		.map((d) => ({ decision: d, identity: identities.find((i) => i.actorId === d.actorId) }))
 		.filter((entry) =>
 			entry.identity && entry.identity.actorId !== proposal.proposedBy &&
 			checkScopedAccess(entry.identity, proposal.tenantId, 'responses:approve').allowed
 		);
-	const soc = valid.find((entry) => activeMembership(entry.identity!, proposal.tenantId)?.role === 'soc_lead');
-	const customer = valid.find((entry) => activeMembership(entry.identity!, proposal.tenantId)?.role === 'customer_admin' &&
+	// Only an authorised reviewer can veto the proposal; an unrelated
+	// actor's forged browser data must not count as a valid review.
+	if (valid.some((entry) => entry.decision.decision === 'reject')) {
+		return fail('An authorised reviewer rejected this proposed action.');
+	}
+	const soc = valid.find((entry) => entry.decision.decision === 'approve' && activeMembership(entry.identity!, proposal.tenantId)?.role === 'soc_lead');
+	const customer = valid.find((entry) => entry.decision.decision === 'approve' && activeMembership(entry.identity!, proposal.tenantId)?.role === 'customer_admin' &&
 		entry.identity!.actorId !== soc?.identity?.actorId);
 	if (!soc || !customer) return fail('Distinct authorised SOC lead and customer administrator approvals are required.');
 	return {

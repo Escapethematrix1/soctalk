@@ -6,6 +6,7 @@ Existing SocTalk backend and production deployments are untouched.
 from __future__ import annotations
 
 import hashlib
+import json
 import hmac
 import secrets
 import sqlite3
@@ -19,6 +20,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, ConfigDict, Field
+from event_pipeline import generate_scenario, scenario_catalogue
 
 COOKIE = "rh_sentry_lab_session"
 SESSION_SECONDS = 3600
@@ -114,6 +116,45 @@ def init_database(db_path: Path):
         );
         CREATE INDEX IF NOT EXISTS evidence_tenant_incident ON incident_evidence(tenant_id,incident_id);
         CREATE INDEX IF NOT EXISTS history_tenant_incident ON incident_history(tenant_id,incident_id);
+        CREATE TABLE IF NOT EXISTS synthetic_event_batches (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tenant_id TEXT NOT NULL REFERENCES tenants(id),
+          idempotency_key TEXT NOT NULL,
+          scenario_id TEXT NOT NULL,
+          submitted_by TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          UNIQUE(tenant_id,idempotency_key)
+        );
+        CREATE TABLE IF NOT EXISTS synthetic_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          batch_id INTEGER NOT NULL REFERENCES synthetic_event_batches(id),
+          tenant_id TEXT NOT NULL REFERENCES tenants(id),
+          event_type TEXT NOT NULL,
+          occurred_at TEXT NOT NULL,
+          source TEXT NOT NULL,
+          actor TEXT NOT NULL,
+          host TEXT NOT NULL,
+          description TEXT NOT NULL,
+          attributes_json TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS synthetic_events_tenant_idx ON synthetic_events(tenant_id,id DESC);
+        CREATE TABLE IF NOT EXISTS synthetic_correlations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          batch_id INTEGER NOT NULL REFERENCES synthetic_event_batches(id),
+          tenant_id TEXT NOT NULL REFERENCES tenants(id),
+          rule_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          explanation TEXT NOT NULL,
+          case_id TEXT,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY(case_id,tenant_id) REFERENCES incidents(id,tenant_id)
+        );
+        CREATE TABLE IF NOT EXISTS synthetic_correlation_events (
+          correlation_id INTEGER NOT NULL REFERENCES synthetic_correlations(id),
+          event_id INTEGER NOT NULL REFERENCES synthetic_events(id),
+          PRIMARY KEY(correlation_id,event_id)
+        );
+        CREATE INDEX IF NOT EXISTS synthetic_correlations_tenant_idx ON synthetic_correlations(tenant_id,id DESC);
         """)
         # Non-destructive migration for existing local lab DBs. Never reset
         # seeded cases or remove prior demo audit records.
@@ -150,6 +191,12 @@ class UpdateIncident(BaseModel):
     expectedVersion: int = Field(ge=1)
     status: IncidentStatus | None = None
     assignedTo: str | None = Field(default=None, max_length=60)
+
+
+class SubmitSyntheticScenario(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    scenarioId: Literal["impossible-travel", "encoded-powershell", "ordinary-signins", "partial-auth"]
+    idempotencyKey: str = Field(min_length=12, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
 
 
 class AddEvidenceNote(BaseModel):

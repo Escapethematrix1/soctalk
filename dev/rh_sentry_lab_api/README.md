@@ -132,3 +132,30 @@ Security/control properties in this local lab: server-validated tenancy, analyst
 9. Run \`.\.venv\Scripts\python.exe -m pytest -q tests\` in the Python lab folder to verify the security and persistence checks.
 
 The intentionally bounded test generator must never be exposed to external networks or real organisations. When the lab reaches 50 synthetic batches for a tenant it refuses additional ingestion rather than silently deleting audit/event records.
+
+
+## Wazuh JSON-format adapter (offline fixtures only)
+
+Two additional Event Pipeline choices are now available after restarting the Python backend:
+
+- **Wazuh-format SSH failure burst** — three manufactured Wazuh alert-shaped objects are reduced to a strict allowlist; a deterministic example correlates events sharing agent, rule and TEST-NET source IP within five minutes.
+- **Wazuh-format single SSH failure** — one fabricated alert is retained without a positive burst correlation.
+
+Wazuh's documented alert JSON convention includes top-level \`timestamp\` and \`id\`, nested \`rule.id/level/description\`, \`agent.id/name\`, and optional \`data\`. The lab's deliberately limited adapter in [wazuh_fixture_adapter.py](wazuh_fixture_adapter.py) retains only those vetted fields plus \`data.srcip\`; it does **not** save raw \`full_log\`, \`previous_output\`, \`location\`, arbitrary \`data\`, or manager internals. Agent names must begin with \`TRAINING-\` and addresses must belong to RFC 5737 TEST-NET-1 (\`192.0.2.0/24\`), so the example cannot accidentally contain a real customer's source IP. The illustrative rule \`100900\` is **not** a claim about an official Wazuh ruleset ID. Existing tenant membership, CSRF, idempotency, audit and rate limits still apply.
+
+References:
+
+- Wazuh alert storage: https://documentation.wazuh.com/current/user-manual/manager/alert-management.html
+- Wazuh JSON alert example: https://documentation.wazuh.com/current/user-manual/ruleset/ruleset-xml-syntax/rules.html
+
+**This adapter has no connection to a Wazuh manager, dashboard, indexer, or agent.** It cannot ingest real alert files and cannot be used for customer monitoring. Real telemetry integration must introduce a separate authenticated, source-attested collector and establish strict per-customer provenance, rate limiting, parsing, transport encryption, deduplication, retention and review controls.
+
+### Laptop resource planning
+
+Official Wazuh quickstart guidance for the all-in-one Wazuh server + indexer + dashboard serving 1–25 agents is **4 vCPUs, 8 GiB RAM and 50 GB storage**: https://documentation.wazuh.com/current/quickstart.html
+
+On a **16 GB RAM laptop**, giving 8 GB to a Wazuh VM leaves only 8 GB for Windows, VS Code, the browser and other tasks. Avoid running the existing Kali VM and a full Wazuh VM together; this is likely to cause memory pressure. Finish the offline adapter and lab tests first, then consider an isolated Wazuh-only VM session with Kali shut down, or use a different lab machine later. This branch has not provisioned any VM or installed any Wazuh package.
+
+### Validation
+
+From \`dev\rh_sentry_lab_api\` run \`.\.venv\Scripts\python.exe -m pytest -q tests\`, then restart the local Python server after pulling new code. In Event Pipeline, sign in through API Lab as fictional \`alderwick-analyst\` and test both Wazuh-format scenarios. A burst creates **three fictional event rows and one synthetic correlation**. A single event creates one row with **zero new correlations**. Other historical correlations remain visible. The associated test file is [tests/test_wazuh_fixture_adapter.py](tests/test_wazuh_fixture_adapter.py).

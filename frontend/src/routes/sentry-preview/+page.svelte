@@ -1,22 +1,9 @@
 <script lang="ts">
+	import AnalystWorkspace from '$lib/components/sentry/AnalystWorkspace.svelte';
+	import type { DemoIncident as Incident, Severity, IncidentStatus as Status } from '$lib/sentry-demo/types';
 	// RH Sentry product-design sandbox. Deliberately no API calls, credentials,
 	// external network operations, or real-world response actions.
-	type Severity = 'Critical' | 'High' | 'Medium' | 'Low';
-	type Status = 'Investigating' | 'Awaiting review' | 'Contained' | 'Escalated';
 	type View = 'Overview' | 'Incidents' | 'AI Analyst' | 'Assets' | 'Reports';
-	type Incident = {
-		id: string;
-		title: string;
-		category: string;
-		asset: string;
-		severity: Severity;
-		status: Status;
-		time: string;
-		description: string;
-		confidence: number;
-		indicators: string[];
-		timeline: string[];
-	};
 	const seed: Incident[] = [
 		{
 			id: 'SEN-2048',
@@ -125,6 +112,8 @@
 	let search = '';
 	let selectedId = seed[0].id;
 	let demoCount = 0;
+	let analysed: Record<string, boolean> = {};
+	let decisions: Record<string, 'Reviewed — proposed' | 'Rejected — no action'> = {};
 	let briefingGenerated = false;
 	let menuOpen = false;
 	$: visibleIncidents = incidents.filter((incident) => {
@@ -168,6 +157,8 @@
 		search = '';
 		filter = 'All';
 		briefingGenerated = false;
+		analysed = {};
+		decisions = {};
 		view = 'Overview';
 	}
 </script>
@@ -332,15 +323,7 @@
 			{/if}
 
 			{#if view === 'AI Analyst'}
-				<div class="workspace-grid">
-					<section class="panel analyst-card">
-						<div class="panel-head"><div><div class="panel-kicker">INTELLIGENCE WORKSPACE / DEMO</div><h2>Investigation narrative</h2></div><span class="mock-badge">NO MODEL CONNECTED</span></div>
-						<div class="analyst-intro"><span class="ai-glyph">✳</span><div><strong>RH Sentry Analyst</strong><p>Evidence-first security intelligence, with human control over response.</p></div></div>
-						<div class="analyst-message"><div class="message-label">SAMPLE INVESTIGATION · {selected.id}</div><h3>{selected.title}</h3><p>{selected.description}</p><div class="message-label">EVIDENCE TO VALIDATE</div><ul class="indicator-list">{#each selected.indicators as indicator}<li>{indicator}</li>{/each}</ul></div>
-						<div class="approval-note"><strong>Human approval required</strong><p>Containment, account disabling and other changes are intentionally unavailable in this design preview.</p></div>
-					</section>
-					<section class="panel timeline-card"><div class="panel-head"><div><div class="panel-kicker">INVESTIGATION CONTEXT</div><h2>Event timeline</h2></div></div><div class="timeline">{#each selected.timeline as entry}<div class="timeline-entry">{entry}</div>{/each}</div><button type="button" class="detail-link" on:click={() => selectView('Incidents')}>Select another case ↗</button></section>
-				</div>
+				<AnalystWorkspace {incidents} bind:selectedId bind:analysed bind:decisions />
 			{/if}
 
 			{#if view === 'Assets'}

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import IncidentCaseLab from '$lib/components/sentry/IncidentCaseLab.svelte';
+	export let sharedSession: { user: string; csrf: string } | null;
+	export let onSessionChange: (next: { user: string; csrf: string } | null) => void;
 
 	// This screen only talks to an explicitly local, separately started API lab.
 	// There is no production endpoint, browser persistence or active SOC service.
@@ -102,6 +104,7 @@
 			});
 			csrf = result.csrfToken;
 			await refreshSession();
+			onSessionChange({ user: sessionUser, csrf });
 			status = 'Signed in to the local lab as ' + sessionUser + '. The session is not a production identity.';
 		} catch (error) {
 			status = error instanceof Error ? error.message : 'Local lab login failed.';
@@ -117,6 +120,7 @@
 		try {
 			await callApi('/api/lab/logout', { method: 'POST', headers: { 'X-CSRF-Token': csrf } });
 			status = 'Local lab session revoked.';
+			onSessionChange(null);
 			csrf = '';
 			sessionUser = '';
 			tenants = [];
@@ -170,7 +174,13 @@
 		}
 	}
 
-	onMount(() => { void checkServer(); });
+	onMount(() => {
+		void checkServer();
+		if (sharedSession) {
+			csrf = sharedSession.csrf;
+			void refreshSession().catch(() => onSessionChange(null));
+		}
+	});
 </script>
 
 <div class="api-lab">

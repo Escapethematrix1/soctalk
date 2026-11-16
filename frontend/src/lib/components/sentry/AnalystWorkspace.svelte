@@ -6,11 +6,12 @@
 	export let selectedId: string;
 
 	type Panel = 'Findings' | 'Evidence' | 'Response';
-	type DemoDecision = 'Reviewed — proposed' | 'Rejected — no action';
+	export type DemoDecision = 'Reviewed — proposed' | 'Rejected — no action';
+	const panels: Panel[] = ['Findings', 'Evidence', 'Response'];
 	let panel: Panel = 'Findings';
 	let search = '';
-	let analysed: Record<string, boolean> = {};
-	let decisions: Record<string, DemoDecision> = {};
+	export let analysed: Record<string, boolean>;
+	export let decisions: Record<string, DemoDecision>;
 	let acknowledge = false;
 
 	$: selected = incidents.find((incident) => incident.id === selectedId) ?? incidents[0];
@@ -115,7 +116,7 @@
 			</div>
 		{:else}
 			<div class="tab-row" role="tablist" aria-label="Investigation sections">
-				{#each (['Findings', 'Evidence', 'Response'] as Panel[]) as name}
+				{#each panels as name}
 					<button type="button" role="tab" id={'rh-tab-' + name.toLowerCase()} aria-selected={panel === name} class:tab-active={panel === name} on:click={() => (panel = name)}>{name}</button>
 				{/each}
 			</div>

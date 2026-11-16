@@ -11,14 +11,15 @@ const create = (id: string, tenantId?: string): DemoIncident => ({
 
 describe('demonstration customer data scoping (not an auth boundary)', () => {
 	it('never includes another demo organisation in the chosen sample list', () => {
-		const cases = [create('A', 'northbridge'), create('B', 'harbourline'), create('C', 'northbridge')];
-		expect(incidentsForDemoCustomer(cases, 'northbridge').map((x) => x.id)).toEqual(['A', 'C']);
+		const cases = [create('A', 'alderwick'), create('B', 'harbourline'), create('C', 'alderwick')];
+		expect(incidentsForDemoCustomer(cases, 'alderwick').map((x) => x.id)).toEqual(['A', 'C']);
 	});
 	it('excludes unassigned incidents', () => {
 		expect(incidentsForDemoCustomer([create('A'), create('B', 'summit')], 'summit').map((x) => x.id)).toEqual(['B']);
 	});
 	it('provides three unique fictional customer IDs', () => {
 		expect(new Set(demoCustomers.map((x) => x.id)).size).toBe(3);
+		expect(demoCustomers.some((x) => x.id === 'alderwick' && x.name === 'Alderwick Logistics')).toBe(true);
 		expect(demoCustomers.every((x) => x.demoContact.endsWith('.invalid'))).toBe(true);
 	});
 });

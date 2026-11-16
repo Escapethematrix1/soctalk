@@ -5,6 +5,7 @@
 	import DetectionEngineering from '$lib/components/sentry/DetectionEngineering.svelte';
 	import PlatformSecurity from '$lib/components/sentry/PlatformSecurity.svelte';
 	import ApiLab from '$lib/components/sentry/ApiLab.svelte';
+	import LocalCaseWorkspace from '$lib/components/sentry/LocalCaseWorkspace.svelte';
 	import type { DemoIncident as Incident, Severity, IncidentStatus as Status } from '$lib/sentry-demo/types';
 	// RH Sentry product-design sandbox. Core modules use simulated data.
 	// The optional API Lab is explicitly local-only; no real-world SOC response
@@ -133,6 +134,10 @@
 	let decisions: Record<string, 'Reviewed — proposed' | 'Rejected — no action'> = {};
 	let briefingGenerated = false;
 	let menuOpen = false;
+	let incidentDataMode: 'simulated' | 'local' = 'simulated';
+	let localTenantId = '';
+	let localCaseId = '';
+	let labSession: { user: string; csrf: string } | null = null;
 	$: visibleIncidents = incidents.filter((incident) => {
 		const matchesSeverity = filter === 'All' || incident.severity === filter;
 		const term = search.trim().toLowerCase();
@@ -146,17 +151,32 @@
 		view = next;
 		menuOpen = false;
 	}
+	function handleLabSessionChange(next: { user: string; csrf: string } | null) {
+		labSession = next;
+	}
+	function openLocalApiLab() {
+		selectView('API Lab');
+	}
+	function openCompanionLocalWorkspace(tenant: string, caseId: string) {
+		localTenantId = tenant;
+		localCaseId = caseId;
+		incidentDataMode = 'local';
+		selectView(view === 'Incidents' ? 'AI Analyst' : 'Incidents');
+	}
 	function openLinkedDetectionIncident(id: string) {
+		incidentDataMode = 'simulated';
 		selectedId = id;
 		filter = 'All';
 		search = '';
 		selectView('Incidents');
 	}
 	function openInvestigation(id: string) {
+		incidentDataMode = 'simulated';
 		selectedId = id;
 		selectView('AI Analyst');
 	}
 	function injectAlert() {
+		incidentDataMode = 'simulated';
 		demoCount += 1;
 		const item: Incident = {
 			id: 'SEN-LAB-' + String(demoCount).padStart(3, '0'),
@@ -179,6 +199,7 @@
 		view = 'Incidents';
 	}
 	function resetDemo() {
+		incidentDataMode = 'simulated';
 		incidents = [...seed];
 		demoCount = 0;
 		selectedId = seed[0].id;
@@ -222,8 +243,8 @@
 	<div class="workarea">
 		<div class="demo-banner">
 			<span class="demo-pill">DEMO ENVIRONMENT</span>
-			<span>All organisations, threats, events and metrics shown here are simulated.</span>
-			<button type="button" on:click={resetDemo} class="reset-demo">Reset demo ↺</button>
+			<span>All organisations and incidents are fictional. The optional local API uses SQLite; no live SOC telemetry is connected.</span>
+			<button type="button" on:click={resetDemo} class="reset-demo">Reset visual demo ↺</button>
 		</div>
 
 		<header class="topbar">
@@ -232,7 +253,7 @@
 				<div class="breadcrumbs">PLATFORM <span>/</span> <strong>{view === 'Overview' ? 'COMMAND CENTRE' : view.toUpperCase()}</strong></div>
 			</div>
 			<div class="topbar-actions">
-				<div class="signal-tag"><span class="status-dot amber"></span> DATA SOURCE: SIMULATED</div>
+				<div class="signal-tag"><span class="status-dot amber"></span> DATA SOURCE: {(view === 'Incidents' || view === 'AI Analyst') && incidentDataMode === 'local' ? 'LOCAL SQLITE LAB · SYNTHETIC' : 'SIMULATED'}</div>
 				<div class="avatar" aria-label="Demonstration operator">RH</div>
 			</div>
 		</header>
@@ -249,6 +270,19 @@
 					<button type="button" class="button-primary" on:click={injectAlert}>+ Inject demo alert</button>
 				</div>
 			</div>
+
+			{#if view === 'Incidents' || view === 'AI Analyst'}
+				<div class="data-source-selector" aria-label="Incident data source">
+					<div>
+						<strong>Workspace data source</strong>
+						<p>{incidentDataMode === 'simulated' ? 'Interactive simulated incidents and hypothetical AI findings.' : 'Authenticated fictional case records from your localhost SQLite API. No AI inference is connected.'}</p>
+					</div>
+					<div class="data-source-buttons">
+						<button type="button" class:chosen={incidentDataMode === 'simulated'} aria-pressed={incidentDataMode === 'simulated'} on:click={() => (incidentDataMode = 'simulated')}>Simulation</button>
+						<button type="button" class:chosen={incidentDataMode === 'local'} aria-pressed={incidentDataMode === 'local'} on:click={() => (incidentDataMode = 'local')}>Local API / SQLite</button>
+					</div>
+				</div>
+			{/if}
 
 			{#if view === 'Overview'}
 				<div class="health-strip">
@@ -303,7 +337,7 @@
 				</div>
 			{/if}
 
-			{#if view === 'Overview' || view === 'Incidents'}
+			{#if view === 'Overview' || (view === 'Incidents' && incidentDataMode === 'simulated')}
 				<div class="section-title-row">
 					<div><div class="eyebrow">TRIAGE AND RESPONSE</div><h2>{view === 'Overview' ? 'Priority investigations' : 'Incident queue'}</h2></div>
 					<span class="section-number">{visibleIncidents.length} DISPLAYED / {incidents.length} TOTAL</span>
@@ -359,8 +393,20 @@
 				<CustomerPortfolio {incidents} />
 			{/if}
 
-			{#if view === 'AI Analyst'}
+			{#if view === 'AI Analyst' && incidentDataMode === 'simulated'}
 				<AnalystWorkspace {incidents} bind:selectedId bind:analysed bind:decisions />
+			{/if}
+
+			{#if view === 'Incidents' && incidentDataMode === 'local'}
+				<LocalCaseWorkspace mode="incidents" bind:selectedTenantId={localTenantId} bind:selectedCaseId={localCaseId}
+					csrf={labSession?.csrf ?? ''} labSessionUser={labSession?.user ?? ''}
+					onOpenApiLab={openLocalApiLab} onSwitchWorkspace={openCompanionLocalWorkspace}/>
+			{/if}
+
+			{#if view === 'AI Analyst' && incidentDataMode === 'local'}
+				<LocalCaseWorkspace mode="analyst" bind:selectedTenantId={localTenantId} bind:selectedCaseId={localCaseId}
+					csrf={labSession?.csrf ?? ''} labSessionUser={labSession?.user ?? ''}
+					onOpenApiLab={openLocalApiLab} onSwitchWorkspace={openCompanionLocalWorkspace}/>
 			{/if}
 
 			{#if view === 'Response Centre'}
@@ -376,7 +422,7 @@
 			{/if}
 
 			{#if view === 'API Lab'}
-				<ApiLab />
+				<ApiLab sharedSession={labSession} onSessionChange={handleLabSessionChange} />
 			{/if}
 
 			{#if view === 'Assets'}
@@ -579,6 +625,13 @@
 	.coverage-quicklink p { color: #9aacbd; font-size: 11px; line-height: 1.7; margin: 5px 0 0; }
 	.coverage-quicklink button { border: 1px solid #784351; border-radius: 6px; padding: 12px; background: #3b2732; color: #f5c6cf; cursor: pointer; font-size: 11px; font-weight: 800; flex-shrink: 0; }
 	@media (max-width: 700px) { .coverage-quicklink { flex-direction: column; align-items: flex-start; } }
+	.data-source-selector { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; border: 1px solid #3b4251; background: #171f2b; border-radius: 9px; padding: 17px 20px; }
+	.data-source-selector strong { font-size: 13px; }
+	.data-source-selector p { color: #97a8b9; font-size: 11px; line-height: 1.65; margin: 6px 0 0; }
+	.data-source-buttons { display: flex; flex-wrap: wrap; gap: 7px; flex-shrink: 0; }
+	.data-source-buttons button { cursor: pointer; padding: 11px 14px; border: 1px solid #3b485b; border-radius: 6px; background: #111b28; color: #b2c0d0; font-size: 11px; font-weight: 800; }
+	.data-source-buttons button.chosen { border-color: #b1475a; background: #3b2433; color: #ffccd5; }
+	@media (max-width: 750px) { .data-source-selector { flex-direction: column; align-items: flex-start; } }
 	@media (max-width: 1260px) {
 		.sidebar { width: 222px; flex-basis: 222px; }
 		main { padding: 30px 26px; }

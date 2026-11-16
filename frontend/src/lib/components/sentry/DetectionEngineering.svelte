@@ -47,6 +47,12 @@
 		selectedTestId = id;
 		result = null;
 	}
+	function handleRuleChange(event: Event) {
+		const element = event.currentTarget;
+		if (!(element instanceof HTMLSelectElement)) return;
+		const next = demoDetectionRules.find((entry) => entry.id === element.value);
+		if (next) selectRule(next);
+	}
 	function runTest() {
 		// No API, local shell, Wazuh, endpoint or response action is invoked.
 		result = evaluateDemoDetection(rule.id, chosenTest.event);
@@ -144,10 +150,7 @@
 				<div class="card-heading"><div><span class="overline">RULE VALIDATION / SYNTHETIC</span><h2>Test laboratory</h2></div><span class="demo-flag">LOCAL ONLY</span></div>
 				<div class="chooser-group">
 					<label for="lab-rule">DETECTION RULE</label>
-					<select id="lab-rule" value={selectedId} on:change={(event) => {
-						const next = demoDetectionRules.find((entry) => entry.id === (event.currentTarget as HTMLSelectElement).value);
-						if (next) selectRule(next);
-					}}>
+					<select id="lab-rule" value={selectedId} on:change={handleRuleChange}>
 						{#each demoDetectionRules as item}<option value={item.id}>{item.name}</option>{/each}
 					</select>
 				</div>

@@ -6,11 +6,12 @@
 	import PlatformSecurity from '$lib/components/sentry/PlatformSecurity.svelte';
 	import ApiLab from '$lib/components/sentry/ApiLab.svelte';
 	import LocalCaseWorkspace from '$lib/components/sentry/LocalCaseWorkspace.svelte';
+	import SyntheticEventPipeline from '$lib/components/sentry/SyntheticEventPipeline.svelte';
 	import type { DemoIncident as Incident, Severity, IncidentStatus as Status } from '$lib/sentry-demo/types';
 	// RH Sentry product-design sandbox. Core modules use simulated data.
 	// The optional API Lab is explicitly local-only; no real-world SOC response
 	// actions, production accounts, or live security integrations are connected.
-	type View = 'Overview' | 'Customers' | 'Incidents' | 'AI Analyst' | 'Response Centre' | 'Detection Engineering' | 'Security Architecture' | 'API Lab' | 'Assets' | 'Reports';
+	type View = 'Overview' | 'Customers' | 'Incidents' | 'AI Analyst' | 'Response Centre' | 'Detection Engineering' | 'Event Pipeline' | 'Security Architecture' | 'API Lab' | 'Assets' | 'Reports';
 	const seed: Incident[] = [
 		{
 			id: 'SEN-2048',
@@ -105,6 +106,7 @@
 		{ name: 'AI Analyst', short: 'AI', description: 'Investigative intelligence' },
 		{ name: 'Response Centre', short: 'RC', description: 'Review and response' },
 		{ name: 'Detection Engineering', short: 'DE', description: 'Rules and coverage' },
+		{ name: 'Event Pipeline', short: 'EP', description: 'Synthetic event correlation' },
 		{ name: 'Security Architecture', short: 'SA', description: 'SaaS access and policy' },
 		{ name: 'API Lab', short: 'LB', description: 'Local backend integration' },
 		{ name: 'Assets', short: 'AS', description: 'Environment coverage' },
@@ -153,6 +155,12 @@
 	}
 	function handleLabSessionChange(next: { user: string; csrf: string } | null) {
 		labSession = next;
+	}
+	function openPipelineCase(tenantId: string, caseId: string) {
+		localTenantId = tenantId;
+		localCaseId = caseId;
+		incidentDataMode = 'local';
+		selectView('Incidents');
 	}
 	function openLocalApiLab() {
 		selectView('API Lab');
@@ -253,7 +261,7 @@
 				<div class="breadcrumbs">PLATFORM <span>/</span> <strong>{view === 'Overview' ? 'COMMAND CENTRE' : view.toUpperCase()}</strong></div>
 			</div>
 			<div class="topbar-actions">
-				<div class="signal-tag"><span class="status-dot amber"></span> DATA SOURCE: {(view === 'Incidents' || view === 'AI Analyst') && incidentDataMode === 'local' ? 'LOCAL SQLITE LAB · SYNTHETIC' : 'SIMULATED'}</div>
+				<div class="signal-tag"><span class="status-dot amber"></span> DATA SOURCE: {(view === 'Incidents' || view === 'AI Analyst') && incidentDataMode === 'local' || view === 'Event Pipeline' ? 'LOCAL SQLITE LAB · SYNTHETIC' : 'SIMULATED'}</div>
 				<div class="avatar" aria-label="Demonstration operator">RH</div>
 			</div>
 		</header>
@@ -263,7 +271,7 @@
 				<div>
 					<div class="eyebrow">RED HORIZON / DEFENSIVE INTELLIGENCE</div>
 					<h1>{view === 'Overview' ? 'Command Centre' : view}</h1>
-					<p>{view === 'Overview' ? 'A single view of the signals that matter. Investigate with context. Respond with control.' : view === 'Incidents' ? 'Prioritised investigations and evidence-first incident management.' : view === 'Customers' ? 'Manage customer context, scoped incident views and the future SaaS experience.' : view === 'AI Analyst' ? 'Intelligence that explains its reasoning and keeps analysts in control.' : view === 'Response Centre' ? 'Review proposed defensive actions, control approvals and explore sample response playbooks.' : view === 'Detection Engineering' ? 'Explore example detection rules, validate synthetic events and understand monitoring blind spots.' : view === 'Security Architecture' ? 'Design customer boundaries, least-privilege access and human response approval policies.' : view === 'API Lab' ? 'Explore the isolated localhost API with fictional customer identities, persistent records and server-side tenant checks.' : view === 'Assets' ? 'A clear view of the systems your future SOC will protect.' : 'Decision-ready intelligence for security leaders and clients.'}</p>
+					<p>{view === 'Overview' ? 'A single view of the signals that matter. Investigate with context. Respond with control.' : view === 'Incidents' ? 'Prioritised investigations and evidence-first incident management.' : view === 'Customers' ? 'Manage customer context, scoped incident views and the future SaaS experience.' : view === 'AI Analyst' ? 'Intelligence that explains its reasoning and keeps analysts in control.' : view === 'Response Centre' ? 'Review proposed defensive actions, control approvals and explore sample response playbooks.' : view === 'Detection Engineering' ? 'Explore example detection rules, validate synthetic events and understand monitoring blind spots.' : view === 'Event Pipeline' ? 'Generate fictional telemetry, inspect provenance and review explainable lab correlations.' : view === 'Security Architecture' ? 'Design customer boundaries, least-privilege access and human response approval policies.' : view === 'API Lab' ? 'Explore the isolated localhost API with fictional customer identities, persistent records and server-side tenant checks.' : view === 'Assets' ? 'A clear view of the systems your future SOC will protect.' : 'Decision-ready intelligence for security leaders and clients.'}</p>
 				</div>
 				<div class="heading-actions">
 					<button type="button" class="button-secondary" on:click={() => selectView('Reports')}>View briefing <span>↗</span></button>
@@ -419,6 +427,11 @@
 
 			{#if view === 'Security Architecture'}
 				<PlatformSecurity />
+			{/if}
+
+			{#if view === 'Event Pipeline'}
+				<SyntheticEventPipeline csrf={labSession?.csrf ?? ''} labSessionUser={labSession?.user ?? ''}
+					onOpenApiLab={openLocalApiLab} onOpenCase={openPipelineCase} />
 			{/if}
 
 			{#if view === 'API Lab'}

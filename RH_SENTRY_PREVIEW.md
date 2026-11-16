@@ -69,6 +69,23 @@ The test suite includes new RH Sentry investigation-contract tests. If \`pnpm ch
 Keep or start one Vite server with \`pnpm dev --host 127.0.0.1\`, then open \`http://127.0.0.1:5173/sentry-preview\`.
 
 
+
+## Stage 3 — Multi-customer SaaS design (added)
+
+The new **Customers** sidebar section shows a fictional MSSP customer portfolio:
+
+- Searchable sample organisations and tenant-specific incident summaries.
+- A toggle between an operator-facing workspace and a **visual customer-portal preview**.
+- Customer-scoped *sample* incident lists and separate demonstration counts.
+- Clear warning that this toggle is **not** authentication, isolation or an actual tenant boundary.
+- Zero live sensors, no real customers, and no connected databases.
+
+The AI Analyst typography and column proportions have also been adjusted for readability.
+
+All customer names and \`.invalid\` email addresses are fabricated. A real SaaS release needs enforced server-side tenant authorisation, tested data partitioning, identity management and comprehensive audit logging. A client-side filter alone is **never** an acceptable security boundary.
+
+The team should verify this milestone using \`pnpm check\`, \`pnpm test:unit\` and the localhost preview. This GitHub edit has **not** been executed on the developer's laptop by ChatGPT.
+
 ## Future phases (not implemented yet)
 
 1. Refine the RH Sentry interface and approved brand assets.

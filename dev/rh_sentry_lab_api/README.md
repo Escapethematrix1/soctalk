@@ -100,3 +100,35 @@ Each successful change atomically updates the incident version, records the case
 6. Sign in as `alderwick-viewer`; the case stays visible but editing and internal analyst notes are unavailable.
 
 **Never use genuine client records or secrets here.** The local SQLite file is not encrypted or governed for real customer information.
+
+
+## Synthetic event ingestion and correlation laboratory
+
+A separate, **fictional-data-only** event pipeline is available in the RH Sentry preview at **Event Pipeline**. The Python service must be restarted after pulling new backend code so its SQLite migrations run.
+
+Only an authenticated fictional SOC analyst/lead in the owning tenant may list or ingest these scenarios. Ingestion requires the same session-bound CSRF token as incident edits. There is no real SIEM, Wazuh integration, event collector, AI model, external file/URL import or automated response.
+
+| Method | Lab path | Purpose |
+| --- | --- | --- |
+| GET | /api/tenants/{tenantId}/lab/scenarios | List four fixed synthetic scenario definitions |
+| POST | /api/tenants/{tenantId}/lab/scenarios/ingest | Generate one fixed event batch, using a validated scenarioId and idempotencyKey |
+| GET | /api/tenants/{tenantId}/lab/events | Read the most recent 100 fictional events for authorised tenant |
+| GET | /api/tenants/{tenantId}/lab/correlations | Read 100 synthetic correlations, linked source event IDs and optional existing case references |
+
+The generator provides *impossible travel*, *encoded PowerShell*, *ordinary sign-ins* and *incomplete authentication telemetry* examples. Only the first two produce positive illustrative matches; benign and incomplete examples must not. Synthetic events include source, event time, type, fictional actor/host and small controlled attributes; no raw user-supplied events can be imported.
+
+Security/control properties in this local lab: server-validated tenancy, analyst-role restriction, CSRF for writes, tenant-scoped SQL, atomic transaction per batch, tenant-keyed idempotency (retry does not duplicate events), a 50-batch-per-tenant disk-growth limit, and audit entries. Correlation references an existing synthetic case only when one belongs to the same tenant; it never creates a new case or updates its status. Test cases verify these conditions. This does not constitute production-grade isolation, real detection fidelity or monitoring coverage.
+
+### Test on your laptop
+
+1. Pull branch \`dev/rh-one\` from the root \`soctalk\` directory, preserving any local work first.
+2. In your Python backend terminal at \`dev\rh_sentry_lab_api\`, stop the server with Ctrl+C, then restart \`.\.venv\Scripts\python.exe run.py\`. Keep your already-created temporary lab password in that PowerShell session.
+3. In another terminal, keep the Svelte frontend on \`127.0.0.1:5173\`.
+4. Under **API Lab**, sign in again as \`alderwick-analyst\` to obtain an in-memory CSRF token.
+5. Open **Event Pipeline**, select *Unusual consecutive sign-ins* and click **Generate & correlate sample batch**.
+6. Expect **two stored synthetic events** and one correlation labelled \`RHS-DET-001\`; click the link to existing incident \`SEN-2048\` in local Incidents mode. The case status should not have changed.
+7. Return and test the *ordinary sign-ins* and *incomplete sign-in* scenarios: no new correlations should appear for their batches. Historical correlations from other batches remain visible.
+8. Sign in as \`alderwick-viewer\` to confirm analyst event access is denied. A full browser refresh may require signing in again before submitting events.
+9. Run \`.\.venv\Scripts\python.exe -m pytest -q tests\` in the Python lab folder to verify the security and persistence checks.
+
+The intentionally bounded test generator must never be exposed to external networks or real organisations. When the lab reaches 50 synthetic batches for a tenant it refuses additional ingestion rather than silently deleting audit/event records.

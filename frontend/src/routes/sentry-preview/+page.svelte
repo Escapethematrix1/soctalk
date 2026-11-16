@@ -465,7 +465,8 @@
 	.brand-name { font-size: 28px; font-weight: 850; letter-spacing: -.065em; line-height: 1; color: #f8f9fc; white-space: nowrap; }
 	.brand-name .brand-rh { display: inline-flex; align-items: baseline; font: inherit; line-height: inherit; letter-spacing: inherit; vertical-align: baseline; }
 	.brand-name .brand-rh > span { display: inline-block; font-family: inherit; font-size: 1em; font-weight: inherit; font-style: inherit; line-height: inherit; letter-spacing: inherit; vertical-align: baseline; }
-	.brand-name .brand-r { color: #e33247; }
+	/* The red R appears optically smaller at sidebar sizes even with matching type metrics. Compensate visibly, without changing the white H or wordmark layout. */
+	.brand-name .brand-r { color: #e33247; transform: scale(1.09); transform-origin: center center; }
 	.brand-name .brand-h { color: #f8f9fc; }
 	.brand-name .brand-word { color: #f8f9fc; font-weight: 500; letter-spacing: .04em; }
 	.brand-name .brand-dot { color: #e33247; letter-spacing: 0; }

@@ -128,6 +128,43 @@ pnpm test:unit
 Changes are committed to the development branch, but these checks must still be executed on the developer's laptop to verify compilation.
 
 
+## Stage 6 — Detection Engineering & Monitoring Coverage
+
+New **Detection Engineering** operator view, built entirely on synthetic data:
+
+- **Rule library:** six example rule definitions with human-readable detection logic, assumed ATT&CK contexts, false-positive considerations, required data source, gaps and linked *demo* incidents.
+- **Monitoring coverage:** six proposed telemetry sources (identity, endpoint, network, email, privilege audit and agent health) with explicit implementation gaps.
+- **Test laboratory:** three synthetic scenarios per rule — matching, benign and incomplete data — evaluated by deterministic TypeScript predicates. Each test is intentionally small and is **not** production-quality detection logic.
+- **Command Centre:** new coverage-quicklink into the Detection Engineering screen.
+- **Incident navigation:** “View linked demo incident” opens the corresponding incident in the existing synthetic investigation queue.
+- **Unit tests:** check all fixture outcomes, distinguish missing data from benign activity, validate source IDs and assert zero live monitoring.
+
+All coverage metrics are **0 live rules, 0 connected sources, 0% verified live coverage**. Running a test never sends alerts, calls Wazuh, enables a rule, starts an agent or contacts an endpoint.
+
+### Verification on your laptop
+
+From \`soctalk/frontend\`:
+
+\`\`\`powershell
+cd ..
+git status --short
+git pull --ff-only origin dev/rh-one
+cd frontend
+pnpm check
+pnpm test:unit
+\`\`\`
+
+If \`git status --short\` shows uncommitted work, preserve it before pulling. The local preview is still \`http://127.0.0.1:5173/sentry-preview\`. Refresh and open **Detection Engineering**. Validate:
+
+1. Rule library search and filter.
+2. “View linked demo incident” and return to Detection Engineering.
+3. Monitoring coverage (all sources correctly marked **Not connected**).
+4. Test laboratory for each rule: match, no match, missing data.
+5. No real backend is required and existing SocTalk pages stay unchanged.
+
+**Important:** GitHub commits have been verified. ChatGPT has not executed \`pnpm check\`, \`pnpm test:unit\`, or browser acceptance tests on the user's local computer. Confirm those before adding the next milestone.
+
+
 ## Future phases (not implemented yet)
 
 1. Refine the RH Sentry interface and approved brand assets.

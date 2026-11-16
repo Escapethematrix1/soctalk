@@ -8,7 +8,7 @@
 	const seed: Incident[] = [
 		{
 			id: 'SEN-2048',
-			tenantId: 'northbridge',
+			tenantId: 'alderwick',
 			title: 'Impossible travel authentication',
 			category: 'Identity & access',
 			asset: 'M365 / alex.morgan@demo.invalid',
@@ -22,7 +22,7 @@
 		},
 		{
 			id: 'SEN-2047',
-			tenantId: 'northbridge',
+			tenantId: 'alderwick',
 			title: 'Suspicious PowerShell execution',
 			category: 'Endpoint activity',
 			asset: 'WIN-DEMO-07',
@@ -141,7 +141,7 @@
 		demoCount += 1;
 		const item: Incident = {
 			id: 'SEN-LAB-' + String(demoCount).padStart(3, '0'),
-			tenantId: 'northbridge',
+			tenantId: 'alderwick',
 			title: 'Simulated unusual DNS activity',
 			category: 'Network defence',
 			asset: 'LNX-DEMO-03',

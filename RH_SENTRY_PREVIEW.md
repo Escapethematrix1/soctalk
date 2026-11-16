@@ -86,6 +86,22 @@ All customer names and \`.invalid\` email addresses are fabricated. A real SaaS 
 
 The team should verify this milestone using \`pnpm check\`, \`pnpm test:unit\` and the localhost preview. This GitHub edit has **not** been executed on the developer's laptop by ChatGPT.
 
+
+## Stage 4 — Separate customer-facing product experience
+
+The **Customers → Customer portal preview** button now opens a visually distinct, full-width portal demonstration for the selected fictional organisation, rather than merely changing a heading in the operator console.
+
+Features:
+- Branded customer overview, sample security metrics, priority cases, and clearly inactive monitoring indicators.
+- Customer-facing **Overview / Incidents / Services** navigation, with expandable sample incident summaries.
+- Customer-only demo incidents based on the selected fictional tenant ID, using the `incidentsForDemoCustomer` fixture helper.
+- An **Exit customer preview** action that returns to the SOC operator portfolio.
+- Unit tests for the *demonstration* customer scoping helper.
+
+**Critical:** this is a frontend display filter and a design preview. It is **not authentication, tenant isolation, authorisation, real security monitoring, or an operational customer portal**. No service can be purchased or activated from this demo. Production isolation must be enforced and independently tested in the backend and data access layer.
+
+Update in VS Code (from `soctalk/frontend`): `cd ..`, `git pull --ff-only origin dev/rh-one`, `cd frontend`, `pnpm check`, `pnpm test:unit`. If Vite is already running it will usually reload automatically.
+
 ## Future phases (not implemented yet)
 
 1. Refine the RH Sentry interface and approved brand assets.

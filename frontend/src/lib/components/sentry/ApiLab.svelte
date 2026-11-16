@@ -107,9 +107,6 @@
 		try {
 			await callApi('/api/lab/logout', { method: 'POST', headers: { 'X-CSRF-Token': csrf } });
 			status = 'Local lab session revoked.';
-		} catch (error) {
-			status = error instanceof Error ? error.message : 'Logout failed.';
-		} finally {
 			csrf = '';
 			sessionUser = '';
 			tenants = [];
@@ -117,6 +114,10 @@
 			incidents = [];
 			audit = [];
 			tenantId = '';
+		} catch (error) {
+			status = 'The server did not confirm session revocation: ' +
+				(error instanceof Error ? error.message : 'unknown error');
+		} finally {
 			busy = false;
 		}
 	}

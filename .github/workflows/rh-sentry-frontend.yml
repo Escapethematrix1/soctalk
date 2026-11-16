@@ -43,4 +43,4 @@ jobs:
       - name: Typecheck Svelte frontend
         run: pnpm check
       - name: Test RH Sentry preview contracts
-        run: pnpm exec vitest run src/lib/sentry-contracts src/lib/sentry-demo
+        run: pnpm exec vitest run src/lib/sentry-contracts src/lib/sentry-demo src/lib/sentry-lab

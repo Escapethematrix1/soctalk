@@ -37,7 +37,7 @@ def submit(http: TestClient, token: str | None, tenant: str, scenario: str, key:
 
 def test_fixtures_never_claim_live_data():
     catalogue = scenario_catalogue()
-    assert len(catalogue) == 4
+    assert len(catalogue) == 6
     for item in catalogue:
         events, matches = generate_scenario(item["id"], "alderwick")
         assert 1 <= len(events) <= 2

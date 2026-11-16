@@ -260,7 +260,7 @@
 					</section>
 					<section class="panel posture-panel">
 						<div class="panel-head"><div><div class="panel-kicker">ENVIRONMENT POSTURE</div><h2>Coverage preview</h2></div></div>
-						<div class="radial-wrap"><div class="ring"><div class="ring-inner"><strong>0%</strong><span>LIVE COVERAGE</span></div></div></div>
+						<div class="radial-wrap"><div class="coverage-ring"><div class="coverage-ring-inner"><strong>0%</strong><span>LIVE COVERAGE</span></div></div></div>
 						<div class="posture-rows">
 							<div><span><i class="mini-dot green"></i> Sample assets</span><strong>6 configured</strong></div>
 							<div><span><i class="mini-dot amber"></i> Connected sensors</span><strong>0 real</strong></div>
@@ -435,8 +435,8 @@
 	.bar-fill { width: 100%; background: linear-gradient(to top, #792438, #ed4156); border-radius: 3px 3px 0 0; opacity: .88; transition: height .25s; }
 	.bar-column span { font-size: 9px; color: #6e7b8c; height: 24px; padding-top: 8px; }
 	.radial-wrap { display: flex; justify-content: center; padding: 16px 0; }
-	.ring { width: 174px; height: 174px; border-radius: 50%; background: conic-gradient(#df3c54 0deg 0deg, #27313e 0deg 360deg); padding: 15px; }
-	.ring-inner { width: 100%; height: 100%; border-radius: 50%; background: #111823; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+	.coverage-ring { width: 174px; height: 174px; border-radius: 50%; background: conic-gradient(#df3c54 0deg 0deg, #27313e 0deg 360deg); padding: 15px; }
+	.coverage-ring-inner { width: 100%; height: 100%; border-radius: 50%; background: #111823; display: flex; flex-direction: column; justify-content: center; align-items: center; }
 	.ring-inner strong { font-size: 39px; font-weight: 750; letter-spacing: -.06em; }
 	.ring-inner span { font-size: 9px; font-weight: 800; color: #768598; letter-spacing: .12em; margin-top: 3px; }
 	.posture-rows { display: flex; flex-direction: column; gap: 12px; padding-top: 6px; }

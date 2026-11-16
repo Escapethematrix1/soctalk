@@ -229,7 +229,7 @@
 	<aside class={"sidebar" + (menuOpen ? " mobile-open" : "")} aria-label="RH Sentry sections">
 		<div class="sidebar-brand">
 			<div class="brand-overline">RED HORIZON CYBER GROUP</div>
-			<div class="brand-name"><span class="brand-r">R</span><span class="brand-h">H</span> <span class="brand-word">SENTRY</span><span class="brand-dot">.</span></div>
+			<div class="brand-name"><span class="brand-rh"><span class="brand-r">R</span><span class="brand-h">H</span></span> <span class="brand-word">SENTRY</span><span class="brand-dot">.</span></div>
 			<div class="brand-subtitle">SECURITY OPERATIONS PLATFORM</div>
 		</div>
 		<div class="sidebar-section-label">WORKSPACE</div>
@@ -463,6 +463,8 @@
 	.sidebar-brand { padding: 4px 10px 52px; }
 	.brand-overline { color: #858f9f; font-size: 9px; font-weight: 800; letter-spacing: .19em; margin-bottom: 14px; }
 	.brand-name { font-size: 28px; font-weight: 850; letter-spacing: -.065em; line-height: 1; color: #f8f9fc; white-space: nowrap; }
+	.brand-name .brand-rh { display: inline-flex; align-items: baseline; font: inherit; line-height: inherit; letter-spacing: inherit; vertical-align: baseline; }
+	.brand-name .brand-rh > span { display: inline-block; font-family: inherit; font-size: 1em; font-weight: inherit; font-style: inherit; line-height: inherit; letter-spacing: inherit; vertical-align: baseline; }
 	.brand-name .brand-r { color: #e33247; }
 	.brand-name .brand-h { color: #f8f9fc; }
 	.brand-name .brand-word { color: #f8f9fc; font-weight: 500; letter-spacing: .04em; }

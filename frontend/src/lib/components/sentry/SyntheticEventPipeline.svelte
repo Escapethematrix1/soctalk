@@ -180,7 +180,7 @@
 	<div class="notice">
 		<div class="symbol" aria-hidden="true">◈</div>
 		<div><strong>Synthetic ingestion & correlation laboratory</strong>
-			<p>Generate predefined fictional events, store their provenance in local SQLite and inspect deterministic example correlations. No external event source, SIEM, endpoint collector or AI model is connected.</p>
+			<p>Generate fictional security events (including a Wazuh JSON-format example), store allowlisted provenance in SQLite and inspect explainable correlations. No Wazuh connection, endpoint collector or AI model is active.</p>
 		</div>
 		<span>NO LIVE INGESTION</span>
 	</div>
@@ -226,7 +226,7 @@
 				<div class="action">
 					<span class="eyebrow">SELECTED TEST</span>
 					<strong>{selectedScenarioDetails?.name ?? 'Choose a scenario'}</strong>
-					<p>The backend generates predetermined sample fields. This form cannot upload logs, request a URL or run a network command.</p>
+					<p>The backend generates predetermined fields. Wazuh-format examples drop full_log and other raw content. No log upload, URL fetching or network collection is supported.</p>
 					<button type="button" class="primary" disabled={!canSubmit || !selectedScenario || busy} on:click={ingestScenario}>{busy ? 'Storing synthetic events...' : 'Generate & correlate sample batch ↗'}</button>
 					{#if !canSubmit}<small>Sign in again via API Lab to receive a session-bound CSRF token for writes.</small>{/if}
 				</div>

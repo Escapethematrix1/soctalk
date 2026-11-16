@@ -71,16 +71,19 @@
 	let sseStarted = false;
 	let authReady = false;
 
-	$: if (authReady && !sseStarted && $isAuthenticated && currentPath !== '/login') {
+	$: if (authReady && !sseStarted && $isAuthenticated && currentPath !== '/login' && currentPath !== '/sentry-preview') {
 		initSSE();
 		sseStarted = true;
 	}
-	$: if (sseStarted && (!authReady || !$isAuthenticated)) {
+	$: if (sseStarted && (!authReady || !$isAuthenticated || currentPath === '/sentry-preview')) {
 		closeSSE();
 		sseStarted = false;
 	}
 
 	onMount(async () => {
+		// RH Sentry is an isolated, frontend-only dev preview: never probe a
+		// backend or redirect to login when inspecting sample data.
+		if (import.meta.env.DEV && currentPath === '/sentry-preview') return;
 		// Slug-driven landing: extract leading slug from the host and
 		// let the server decide whether it's an MSSP or a tenant
 		// (single endpoint /api/public/scope-by-slug). Failures are
@@ -171,7 +174,10 @@
 	});
 </script>
 
-{#if currentPath === '/login'}
+{#if import.meta.env.DEV && currentPath === '/sentry-preview'}
+	<!-- Standalone RH Sentry design sandbox: no legacy chrome, auth, or API dependencies. -->
+	<slot />
+{:else if currentPath === '/login'}
 	<!-- Locale switcher on the sign-in screen: the app chrome (which
 	     normally hosts it) is hidden here, so a non-English user has no
 	     other way to switch language before logging in. Anchored bottom-LEFT

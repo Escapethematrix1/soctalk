@@ -40,8 +40,8 @@ def test_fixtures_never_claim_live_data():
     assert len(catalogue) == 6
     for item in catalogue:
         events, matches = generate_scenario(item["id"], "alderwick")
-        assert 1 <= len(events) <= 2
-        assert all(event["source"] == "rh-sentry-synthetic-lab" for event in events)
+        assert 1 <= len(events) <= 3
+        assert all(event["source"] in ("rh-sentry-synthetic-lab", "wazuh-format-synthetic-lab") for event in events)
         assert all(event["actor"].endswith(".invalid") for event in events)
         assert all(set(corr["event_offsets"]).issubset(set(range(len(events)))) for corr in matches)
     assert len(generate_scenario("ordinary-signins", "alderwick")[1]) == 0

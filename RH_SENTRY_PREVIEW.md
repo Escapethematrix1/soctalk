@@ -280,6 +280,20 @@ Backend tests run in GitHub Actions. Frontend preview checks run in a separate w
 This is the first stored example event pipeline, not live Wazuh ingestion, automated alerting, verified ATT&CK coverage or AI-driven analysis. No external network-facing backend is enabled.
 
 
+## Stage 12 — Wazuh-compatible fictional alert parsing
+
+In the existing **Event Pipeline** screen, two new generated, Wazuh-format training scenarios demonstrate the next step towards eventual SIEM integration:
+
+- **Wazuh-format SSH failure burst:** three fictional alerts are constructed in the familiar Wazuh JSON structure. The strict adapter normalizes allowlisted timestamp/rule/agent/TEST-NET IP attributes, discarding untrusted raw logs and original fields. A demonstration correlation is attached to the generated events, with no automatic incident creation.
+- **Wazuh-format single SSH failure:** one fictional alert with insufficient context; zero new synthetic correlations.
+- All generated events use \`source=wazuh-format-synthetic-lab\`, not a live sensor source. The fabricated example rule \`100900\` is *not* an official rule identifier. Wazuh is neither installed nor contacted by this adapter.
+- Existing backend isolation, CSRF checks, local SQLite persistence, analyst roles, idempotent submission and audit events are reused unchanged.
+- Adapter unit/API tests exercise the Wazuh-format sample, malformed fields, unsafe raw-log omission, incorrect IPs, cross-tenant access, replay and case immutability.
+
+**Local setup:** Pull \`dev/rh-one\`, keep Vite on 127.0.0.1:5173, and restart the Python server at 127.0.0.1:8001. Log in as \`alderwick-analyst\` through API Lab. Open Event Pipeline and try both new scenarios. Backend test details and 16 GB laptop hardware considerations are in [dev/rh_sentry_lab_api/README.md](dev/rh_sentry_lab_api/README.md).
+
+A **real** Wazuh manager, indexer or agent is not connected; integration using genuine test alerts requires a separate trusted collector and VM setup. All platform functionality remains development-only, with zero production monitoring.
+
 ## Future phases (not implemented yet)
 
 1. Refine the RH Sentry interface and approved brand assets.

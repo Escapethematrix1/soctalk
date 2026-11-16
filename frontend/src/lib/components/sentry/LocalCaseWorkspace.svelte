@@ -56,6 +56,7 @@
 	async function loadCases() {
 		const serial = ++caseSequence;
 		const tenant = selectedTenantId;
+		const preferredCaseId = selectedCaseId;
 		// Clear previous tenant's results before requesting another tenant.
 		incidents = [];
 		selectedCaseId = '';
@@ -71,7 +72,7 @@
 				throw new Error('Unexpected tenant in response; records withheld.');
 			}
 			incidents = response.items;
-			selectedCaseId = chooseLabCase(incidents, '');
+			selectedCaseId = chooseLabCase(incidents, preferredCaseId);
 			message = 'Loaded incident records from the authenticated, tenant-scoped local API.';
 		} catch (error) {
 			if (destroyed || serial !== caseSequence) return;

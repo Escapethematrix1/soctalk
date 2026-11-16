@@ -33,7 +33,6 @@
 		(!search.trim() || [item.name, item.id, item.family, item.technique, item.summary].join(' ').toLowerCase().includes(search.trim().toLowerCase()))
 	);
 	$: linkedSource = demoTelemetrySources.find((source) => source.id === rule.sourceId);
-	$: distinctTests = runKeys.filter((key) => key.endsWith(':match')).length; // demo bookkeeping only
 
 	function selectRule(next: DemoDetectionRule) {
 		selectedId = next.id;
@@ -146,7 +145,7 @@
 				<div class="chooser-group">
 					<label for="lab-rule">DETECTION RULE</label>
 					<select id="lab-rule" value={selectedId} on:change={(event) => {
-						const next = demoDetectionRules.find((entry) => entry.id === event.currentTarget.value);
+						const next = demoDetectionRules.find((entry) => entry.id === (event.currentTarget as HTMLSelectElement).value);
 						if (next) selectRule(next);
 					}}>
 						{#each demoDetectionRules as item}<option value={item.id}>{item.name}</option>{/each}

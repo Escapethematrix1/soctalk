@@ -241,7 +241,7 @@
 							<p>{match.explanation}</p>
 							<div class="corr-meta">Batch #{match.batchId} · Event IDs {match.eventIds.join(', ')} · {match.createdAt}</div>
 							{#if match.caseId}
-								<button type="button" class="link-button" on:click={() => onOpenCase(selectedTenant, match.caseId!)}>Open existing fictional case {match.caseId} ↗</button>
+								<button type="button" class="link-button" on:click={() => onOpenCase(selectedTenant, match.caseId ?? '')}>Open existing fictional case {match.caseId} ↗</button>
 							{:else}
 								<div class="unlinked">No case is linked for this fictional tenant. No incident was created.</div>
 							{/if}

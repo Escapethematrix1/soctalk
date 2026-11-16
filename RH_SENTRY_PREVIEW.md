@@ -102,6 +102,32 @@ Features:
 
 Update in VS Code (from `soctalk/frontend`): `cd ..`, `git pull --ff-only origin dev/rh-one`, `cd frontend`, `pnpm check`, `pnpm test:unit`. If Vite is already running it will usually reload automatically.
 
+## Stage 5 — Response Centre (added)
+
+The **Response Centre** is an operator-facing, **demonstration-only** response review module linked to the AI Analyst's existing in-memory investigation state.
+
+- **Queue:** select a fictional case, see customer context and the preauthored recommended next step
+- **Investigation gate:** before a demo review is possible, open the linked case in AI Analyst and run its *simulated* investigation
+- **Decision gate:** record a proposed approval or rejection only after explicitly acknowledging that no real action will occur
+- **Playbooks:** illustrative identity, endpoint, mailbox and firewall verification/approval steps, with no executable integrations
+- **Decision log:** displays local browser-state decisions; deliberately **not** called an audit trail
+- **Safety:** all execution counts are zero; no backend calls, no credentials, no device or account changes, no real approval or control enforcement
+
+To test, use **Response Centre → select SEN-2048 → Open AI investigation → Run simulated investigation → Response Centre → check acknowledgement → Record proposed approval → Decision log**. The status should update when switching between the two screens. **Reset demo** returns all states to their starting values.
+
+Run the same local checks as earlier from `soctalk/frontend`:
+
+```powershell
+cd ..
+git pull --ff-only origin dev/rh-one
+cd frontend
+pnpm check
+pnpm test:unit
+```
+
+Changes are committed to the development branch, but these checks must still be executed on the developer's laptop to verify compilation.
+
+
 ## Future phases (not implemented yet)
 
 1. Refine the RH Sentry interface and approved brand assets.

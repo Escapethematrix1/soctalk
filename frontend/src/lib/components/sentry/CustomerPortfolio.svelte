@@ -1,27 +1,16 @@
 <script lang="ts">
 	import type { DemoIncident } from '$lib/sentry-demo/types';
+	import { demoCustomers, incidentsForDemoCustomer } from '$lib/sentry-demo/customer';
+	import CustomerPortalPreview from '$lib/components/sentry/CustomerPortalPreview.svelte';
 	export let incidents: DemoIncident[];
 
-	type Customer = {
-		id: string;
-		name: string;
-		sector: string;
-		region: string;
-		sectorCode: string;
-		exampleAssets: number;
-		demoContact: string;
-	};
-	const customers: Customer[] = [
-		{ id: 'northbridge', name: 'Northbridge Manufacturing', sector: 'Manufacturing', region: 'Northern Ireland', sectorCode: 'NM', exampleAssets: 48, demoContact: 'security@northbridge.demo.invalid' },
-		{ id: 'harbourline', name: 'Harbourline Legal', sector: 'Professional services', region: 'United Kingdom', sectorCode: 'HL', exampleAssets: 32, demoContact: 'it@harbourline.demo.invalid' },
-		{ id: 'summit', name: 'Summit Retail', sector: 'Retail & e-commerce', region: 'United Kingdom', sectorCode: 'SR', exampleAssets: 79, demoContact: 'support@summit.demo.invalid' }
-	];
+	const customers = demoCustomers;
 	let selectedId = 'northbridge';
 	let customerPreview = false;
 	let search = '';
 	$: customer = customers.find((c) => c.id === selectedId) ?? customers[0];
 	$: visibleCustomers = customers.filter((c) => (c.name + ' ' + c.sector).toLowerCase().includes(search.trim().toLowerCase()));
-	$: customerIncidents = incidents.filter((incident) => incident.tenantId === selectedId);
+	$: customerIncidents = incidentsForDemoCustomer(incidents, selectedId);
 	$: customerOpen = customerIncidents.filter((incident) => incident.status !== 'Contained').length;
 	$: customerHigh = customerIncidents.filter((incident) => incident.severity === 'Critical' || incident.severity === 'High').length;
 	function selectCustomer(id: string) {
@@ -30,7 +19,10 @@
 	}
 </script>
 
-<div class="clients-layout">
+<div class="clients-layout" class:customer-mode={customerPreview}>
+	{#if customerPreview}
+		<CustomerPortalPreview {customer} incidents={customerIncidents} onExit={() => (customerPreview = false)} />
+	{:else}
 	<aside class="clients-list panel">
 		<div class="list-heading">
 			<span class="label-accent">MSSP / DEMONSTRATION</span>
@@ -89,10 +81,12 @@
 			<div class="customer-footer"><strong>RH Sentry customer experience</strong><p>Planned features: customer-verified access, scoped incidents, exposure trends, reporting and managed response status. None are connected yet.</p></div>
 		{/if}
 	</section>
+	{/if}
 </div>
 
 <style>
 	.clients-layout { display: grid; grid-template-columns: minmax(260px, .72fr) minmax(0, 1.95fr); gap: 17px; align-items: start; }
+	.clients-layout.customer-mode { grid-template-columns: minmax(0,1fr); }
 	.panel { border: 1px solid #293442; border-radius: 11px; background: #111823; overflow: hidden; min-width: 0; }
 	.list-heading { padding: 25px 21px 18px; }
 	.label-accent { color: #e16776; font-size: 10px; font-weight: 800; letter-spacing: .12em; }

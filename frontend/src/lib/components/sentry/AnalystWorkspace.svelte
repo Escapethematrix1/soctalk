@@ -181,10 +181,10 @@
 </div>
 
 <style>
-	.analyst-layout { display: grid; grid-template-columns: minmax(220px,.83fr) minmax(420px,2.1fr) minmax(215px,.9fr); gap: 15px; align-items: start; }
+	.analyst-layout { display: grid; grid-template-columns: minmax(245px,.85fr) minmax(520px,2.2fr) minmax(245px,1fr); gap: 15px; align-items: start; }
 	.card { background: #111823; border: 1px solid #26303e; border-radius: 11px; min-width: 0; overflow: hidden; }
-	.kicker { font-size: 9px; letter-spacing: .16em; font-weight: 800; color: #d35b69; margin: 0 0 12px; }
-	.helper { color: #8d9aad; font-size: 11px; line-height: 1.6; margin: 7px 0 0; }
+	.kicker { font-size: 10px; letter-spacing: .16em; font-weight: 800; color: #d35b69; margin: 0 0 12px; }
+	.helper { color: #a3b0c1; font-size: 12px; line-height: 1.6; margin: 7px 0 0; }
 	.queue-top, .context-heading { padding: 22px 20px 12px; }
 	.queue h2, .context h2 { font-size: 17px; font-weight: 750; letter-spacing: -.02em; margin: 0; color: #f1f5fa; }
 	.queue h2 span { color: #748498; font-size: 11px; margin-left: 7px; }
@@ -195,13 +195,13 @@
 	.queue-item { display: block; background: transparent; border: 0; border-top: 1px solid #222b39; width: 100%; color: #d6e0ed; text-align: left; padding: 16px 18px; cursor: pointer; }
 	.queue-item:hover { background: #1a2432; }
 	.queue-item.chosen { box-shadow: inset 3px 0 0 #e43a50; background: #241d2a; }
-	.queue-heading { display: flex; justify-content: space-between; gap: 7px; margin-bottom: 9px; font-size: 10px; color: #9ba8b8; font-weight: 700; }
+	.queue-heading { display: flex; justify-content: space-between; gap: 7px; margin-bottom: 9px; font-size: 11px; color: #9ba8b8; font-weight: 700; }
 	.priority { color: #a5b0bd; font-weight: 700; }
 	.priority.crit { color: #fb687e; }
 	.priority.high { color: #f7b778; }
-	.queue-item strong { display: block; font-size: 11px; line-height: 1.6; }
-	.queue-asset { display: block; margin: 7px 0 10px; font-size: 10px; color: #8695a8; overflow-wrap: anywhere; }
-	.queue-foot { display: flex; justify-content: space-between; gap: 8px; font-size: 9px; color: #68798e; }
+	.queue-item strong { display: block; font-size: 13px; line-height: 1.6; }
+	.queue-asset { display: block; margin: 7px 0 10px; font-size: 12px; color: #8695a8; overflow-wrap: anywhere; }
+	.queue-foot { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: #68798e; }
 	.queue-foot .reviewed { color: #91d3b6; }
 	.no-cases { color: #9da9bb; padding: 15px; font-size: 12px; }
 	.workbench { padding: 25px 26px 18px; }
@@ -212,9 +212,9 @@
 	.analyst-identity h2 span { font-weight: 450; color: #b5bfce; }
 	.demo-badge { color: #efb4be; background: #39242e; border: 1px solid #724350; padding: 9px 10px; border-radius: 5px; font-size: 9px; font-weight: 800; letter-spacing: .05em; }
 	.case-banner { display: flex; justify-content: space-between; gap: 15px; margin-top: 23px; padding: 18px; border: 1px solid #354052; background: linear-gradient(100deg,#1c2636,#151e2a); border-radius: 9px; }
-	.banner-label,.field-label { font-size: 9px; letter-spacing: .12em; color: #92a0b2; font-weight: 800; }
+	.banner-label, .field-label { font-size: 10px; letter-spacing: .12em; color: #92a0b2; font-weight: 800; }
 	.case-banner h3 { font-size: 16px; font-weight: 750; margin: 8px 0; }
-	.case-banner p { font-size: 10px; color: #a0acbd; margin: 0; overflow-wrap: anywhere; }
+	.case-banner p { font-size: 12px; color: #a0acbd; margin: 0; overflow-wrap: anywhere; }
 	.case-banner p span { color: #e45567; padding: 0 5px; }
 	.case-meta { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; text-align: right; font-size: 10px; color: #f7aab5; }
 	.case-meta strong { color: #cfdae6; font-weight: 700; }
@@ -241,7 +241,7 @@
 	.focus-symbol { font-size: 14px; }
 	.finding-box h3 { margin: 14px 0 21px; font-size: 18px; line-height: 1.5; letter-spacing: -.015em; font-weight: 690; }
 	.finding-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 21px; border-top: 1px solid #2a3443; padding-top: 17px; }
-	.finding-grid p, .finding-stack p, .response-proposal p { font-size: 11px; line-height: 1.85; color: #a5b2c2; margin: 8px 0 0; }
+	.finding-grid p, .finding-stack p, .response-proposal p { font-size: 13px; line-height: 1.85; color: #a5b2c2; margin: 8px 0 0; }
 	.finding-stack { display: flex; flex-direction: column; gap: 15px; margin: 22px 0; }
 	.finding-stack>div { border-left: 2px solid #4b5260; padding: 2px 14px; }
 	.finding-stack .uncertainty { border-left-color: #d29a4c; }
@@ -265,7 +265,7 @@
 	.verification ol { color: #bac6d5; margin: 12px 0 0; padding-left: 19px; display: grid; gap: 9px; font-size: 11px; line-height: 1.55; }
 	.verification li::marker { color: #e36675; }
 	.response-proposal { background: #161f2d; border: 1px solid #374255; border-radius: 8px; padding: 22px; margin: 25px 0; }
-	.response-proposal h3 { font-size: 17px; line-height: 1.6; margin: 13px 0; font-weight: 700; }
+	.response-proposal h3 { font-size: 18px; line-height: 1.6; margin: 13px 0; font-weight: 700; }
 	.approval-banner { background: #282228; border-left: 3px solid #d09a55; padding: 16px 18px; display: flex; align-items: flex-start; gap: 11px; margin-bottom: 21px; }
 	.approval-banner>span { color: #f2c087; font-size: 20px; }
 	.approval-banner strong { font-size: 12px; }
@@ -283,11 +283,11 @@
 	.context { padding-bottom: 20px; }
 	.context .context-heading h2 { font-size: 17px; }
 	.timeline { display: flex; flex-direction: column; margin: 16px 20px 22px 27px; border-left: 1px solid #8b4154; padding-left: 19px; gap: 24px; }
-	.timeline-row { position: relative; font-size: 11px; color: #a7b4c5; line-height: 1.65; overflow-wrap: anywhere; }
+	.timeline-row { position: relative; font-size: 12px; color: #a7b4c5; line-height: 1.65; overflow-wrap: anywhere; }
 	.timeline-row:before { content: ''; display: block; width: 8px; height: 8px; background: #e14d60; position: absolute; left: -24px; top: 5px; border-radius: 50%; border: 2px solid #111823; }
 	.context-divider { margin: 22px 20px 0; height: 1px; background: #293443; }
 	.context-data { padding: 10px 20px; display: grid; gap: 14px; }
-	.context-data>div { display: flex; justify-content: space-between; gap: 11px; font-size: 10px; line-height: 1.5; }
+	.context-data>div { display: flex; justify-content: space-between; gap: 11px; font-size: 12px; line-height: 1.5; }
 	.context-data span { color: #8291a6; }
 	.context-data strong { color: #c9d6e3; font-weight: 670; text-align: right; }
 	.context-note { color: #76869b; font-size: 10px; line-height: 1.7; padding: 0 20px; }

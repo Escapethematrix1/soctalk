@@ -1,4 +1,4 @@
-import type { DemoAssessment, DemoIncident } from './types';
+import type { DemoAssessment, DemoEvidence, DemoIncident } from './types';
 
 /**
  * Deterministic, preauthored demonstration data. This is NOT AI inference.
@@ -88,11 +88,11 @@ const generic: Omit<DemoAssessment, 'evidence'> = {
 
 export function buildDemoAssessment(incident: DemoIncident): DemoAssessment {
 	const scenario = scenarios[incident.id] ?? generic;
-	const evidence = incident.indicators.map((detail, index) => ({
+	const evidence = incident.indicators.map<DemoEvidence>((detail, index) => ({
 		id: incident.id + '-E' + String(index + 1).padStart(2, '0'),
 		source: index === 0 ? 'Example detection signal' : index === 1 ? 'Example enrichment' : 'Example investigation note',
 		detail,
-		type: (index === 0 ? 'Signal' : index === 1 ? 'Context' : 'Unknown') as const
+		type: index === 0 ? 'Signal' : index === 1 ? 'Context' : 'Unknown'
 	}));
 	return { ...scenario, evidence };
 }

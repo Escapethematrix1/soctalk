@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import IncidentCaseLab from '$lib/components/sentry/IncidentCaseLab.svelte';
 
 	// This screen only talks to an explicitly local, separately started API lab.
 	// There is no production endpoint, browser persistence or active SOC service.
@@ -7,12 +8,13 @@
 	const users = [
 		{ id: 'alderwick-viewer', title: 'Alderwick — customer viewer' },
 		{ id: 'alderwick-analyst', title: 'Alderwick — SOC analyst' },
+		{ id: 'alderwick-lead', title: 'Alderwick — SOC lead' },
 		{ id: 'harbourline-viewer', title: 'Harbourline — customer viewer' },
 		{ id: 'summit-viewer', title: 'Summit — customer viewer' },
 		{ id: 'lab-auditor', title: 'Lab auditor — metadata and log only' }
 	];
 	type Tenant = { id: string; name: string };
-	type Incident = { id: string; tenantId: string; title: string; severity: string; status: string };
+	type Incident = { id: string; tenantId: string; title: string; severity: string; status: string; version: number; assignedTo: string | null };
 	type AuditEntry = { id: number; actor: string; tenant_id: string | null; operation: string; outcome: string; occurred_at: string };
 	let selectedUser = users[0].id;
 	let password = '';
@@ -24,11 +26,15 @@
 	let status = '';
 	let tenants: Tenant[] = [];
 	let permittedTenants: Tenant[] = [];
+	let tenantRoles: Record<string, string> = {};
+	let selectedIncidentId = '';
 	let tenantId = '';
 	let incidents: Incident[] = [];
 	let audit: AuditEntry[] = [];
 	let denialStatus = '';
 	let requestedTenant = 'summit';
+	$: canEdit = ['soc_analyst', 'soc_lead'].includes(tenantRoles[tenantId] ?? '');
+	$: selectedIncident = incidents.find((item) => item.id === selectedIncidentId) ?? null;
 
 	async function callApi(path: string, options: RequestInit = {}) {
 		const result = await fetch(API + path, {
@@ -66,7 +72,9 @@
 			sessionUser = me.user;
 			const result = await callApi('/api/tenants');
 			tenants = result.items as Tenant[];
-			const allowedIds = new Set((me.memberships as {tenantId: string; role: string}[]).map((x) => x.tenantId));
+			const memberships = me.memberships as {tenantId: string; role: string}[];
+			tenantRoles = Object.fromEntries(memberships.map((x) => [x.tenantId, x.role]));
+			const allowedIds = new Set(memberships.map((x) => x.tenantId));
 			permittedTenants = tenants.filter((tenant) => allowedIds.has(tenant.id));
 			tenantId = permittedTenants[0]?.id ?? '';
 			if (tenantId) await loadIncidents();
@@ -75,6 +83,8 @@
 			sessionUser = '';
 			tenants = [];
 			permittedTenants = [];
+			tenantRoles = {};
+			selectedIncidentId = '';
 			tenantId = '';
 			incidents = [];
 			throw error;
@@ -111,6 +121,8 @@
 			sessionUser = '';
 			tenants = [];
 			permittedTenants = [];
+			tenantRoles = {};
+			selectedIncidentId = '';
 			incidents = [];
 			audit = [];
 			tenantId = '';
@@ -127,9 +139,11 @@
 		try {
 			const result = await callApi('/api/tenants/' + encodeURIComponent(tenantId) + '/incidents');
 			incidents = result.items as Incident[];
+			if (!incidents.some((item) => item.id === selectedIncidentId)) selectedIncidentId = incidents[0]?.id ?? '';
 			status = 'Only incidents returned by the authenticated server-side tenant query are displayed.';
 		} catch (error) {
 			incidents = [];
+			selectedIncidentId = '';
 			status = error instanceof Error ? error.message : 'Could not load lab incidents.';
 		}
 	}
@@ -222,7 +236,7 @@ $env:RH_SENTRY_LAB_PASSWORD = [System.Net.NetworkCredential]::new("", $secret).P
 				</div>
 				<div class="incidents">
 					{#each incidents as incident (incident.id)}
-						<div class="incident"><span class="severity" class:critical={incident.severity === 'critical'}>{incident.severity}</span><div><strong>{incident.title}</strong><small>{incident.id} · {incident.status} · {incident.tenantId}</small></div></div>
+						<button type="button" class="incident" class:chosen={selectedIncidentId === incident.id} aria-pressed={selectedIncidentId === incident.id} on:click={() => (selectedIncidentId = incident.id)}><span class="severity" class:critical={incident.severity === 'critical'}>{incident.severity}</span><span class="incident-summary"><strong>{incident.title}</strong><small>{incident.id} · {incident.status} · v{incident.version} · {incident.assignedTo ?? 'Unassigned'}</small></span><span class="case-arrow" aria-hidden="true">›</span></button>
 					{:else}
 						<div class="placeholder">No fictional incidents returned for this tenant.</div>
 					{/each}
@@ -231,6 +245,10 @@ $env:RH_SENTRY_LAB_PASSWORD = [System.Net.NetworkCredential]::new("", $secret).P
 			{/if}
 		</section>
 	</div>
+
+	{#if sessionUser && tenantId && selectedIncident}
+		<div class="case-workspace"><IncidentCaseLab {tenantId} incident={selectedIncident} {csrf} {canEdit} onSaved={loadIncidents} /></div>
+	{/if}
 
 	<div class="grid second">
 		<section class="panel tests">
@@ -294,7 +312,10 @@ $env:RH_SENTRY_LAB_PASSWORD = [System.Net.NetworkCredential]::new("", $secret).P
 	.placeholder h3{font-size:16px;color:#eff3f9;margin:13px 0 7px}
 	.placeholder p{font-size:12px;line-height:1.75}
 	.tenant-selector{padding:0 22px 17px;display:flex;flex-direction:column;gap:8px}
-	.incident{border-top:1px solid #2b394b;padding:17px 22px;display:flex;gap:14px;align-items:center}
+	.incident{border:0;border-top:1px solid #2b394b;padding:17px 22px;display:flex;gap:14px;align-items:center;width:100%;background:transparent;color:#e8eff8;text-align:left;cursor:pointer}
+	.incident:hover{background:#1e2a3a}.incident.chosen{background:#342331;box-shadow:inset 3px 0 #e84e63}
+	.incident-summary{min-width:0;flex:1}.case-arrow{color:#f08093;font-size:19px}
+	.case-workspace{margin-top:18px}
 	.incident strong{font-size:13px}.incident small{font-size:11px;color:#8a9db2;display:block;margin-top:7px}
 	.severity{text-transform:uppercase;border:1px solid #7a523c;background:#402e27;color:#ecc18b;border-radius:5px;padding:7px 9px;font-size:9px;font-weight:800}
 	.severity.critical{color:#ffaab8;background:#4b2634;border-color:#8b4358}

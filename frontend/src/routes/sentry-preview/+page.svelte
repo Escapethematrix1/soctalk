@@ -178,7 +178,7 @@
 </svelte:head>
 
 <div class="sentry-shell">
-	<aside class:mobile-open={menuOpen} class="sidebar" aria-label="RH Sentry sections">
+	<aside class={"sidebar" + (menuOpen ? " mobile-open" : "")} aria-label="RH Sentry sections">
 		<div class="sidebar-brand">
 			<div class="brand-overline">RED HORIZON / CYBER GROUP</div>
 			<div class="brand-name">RH <span>SENTRY</span><span class="brand-dot">.</span></div>
@@ -290,14 +290,14 @@
 							<label class="search-wrapper"><span class="sr-only">Search demonstration incidents</span><span aria-hidden="true">⌕</span><input type="search" bind:value={search} placeholder="Search investigations, assets..." /></label>
 							<div class="filters" aria-label="Filter by severity">
 								{#each severities as category}
-									<button type="button" class:filter-active={filter === category} aria-pressed={filter === category} on:click={() => (filter = category)}>{category}</button>
+									<button type="button" class={filter === category ? "filter-active" : ""} aria-pressed={filter === category} on:click={() => (filter = category)}>{category}</button>
 								{/each}
 							</div>
 						</div>
 						<div class="table-head"><span>INCIDENT</span><span>SEVERITY</span><span>STATE</span><span>TIME</span></div>
 						<div class="case-rows">
 							{#each visibleIncidents as incident}
-								<button type="button" class="case-row" class:selected-case={selectedId === incident.id} on:click={() => (selectedId = incident.id)}>
+								<button type="button" class={"case-row" + (selectedId === incident.id ? " selected-case" : "")} on:click={() => (selectedId = incident.id)}>
 									<div class="case-name"><div class="incident-title">{incident.title}</div><div class="incident-meta">{incident.id} <span>·</span> {incident.asset}</div></div>
 									<div><span class="severity" class:critical={incident.severity === 'Critical'} class:high={incident.severity === 'High'} class:medium={incident.severity === 'Medium'}>{incident.severity}</span></div>
 									<div class="state-text">{incident.status}</div>

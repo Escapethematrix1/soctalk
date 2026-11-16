@@ -15,7 +15,7 @@ export interface DemoCustomer {
 }
 
 export const demoCustomers: DemoCustomer[] = [
-	{ id: 'northbridge', name: 'Northbridge Manufacturing', sector: 'Manufacturing', region: 'Northern Ireland', sectorCode: 'NM', exampleAssets: 48, demoContact: 'security@northbridge.demo.invalid' },
+	{ id: 'alderwick', name: 'Alderwick Logistics', sector: 'Transport & logistics', region: 'Northern Ireland', sectorCode: 'AL', exampleAssets: 48, demoContact: 'security@alderwick.demo.invalid' },
 	{ id: 'harbourline', name: 'Harbourline Legal', sector: 'Professional services', region: 'United Kingdom', sectorCode: 'HL', exampleAssets: 32, demoContact: 'it@harbourline.demo.invalid' },
 	{ id: 'summit', name: 'Summit Retail', sector: 'Retail & e-commerce', region: 'United Kingdom', sectorCode: 'SR', exampleAssets: 79, demoContact: 'support@summit.demo.invalid' }
 ];

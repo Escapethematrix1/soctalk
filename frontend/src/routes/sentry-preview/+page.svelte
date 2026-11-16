@@ -1,10 +1,11 @@
 <script lang="ts">
 	import AnalystWorkspace from '$lib/components/sentry/AnalystWorkspace.svelte';
 	import CustomerPortfolio from '$lib/components/sentry/CustomerPortfolio.svelte';
+	import ResponseCentre from '$lib/components/sentry/ResponseCentre.svelte';
 	import type { DemoIncident as Incident, Severity, IncidentStatus as Status } from '$lib/sentry-demo/types';
 	// RH Sentry product-design sandbox. Deliberately no API calls, credentials,
 	// external network operations, or real-world response actions.
-	type View = 'Overview' | 'Customers' | 'Incidents' | 'AI Analyst' | 'Assets' | 'Reports';
+	type View = 'Overview' | 'Customers' | 'Incidents' | 'AI Analyst' | 'Response Centre' | 'Assets' | 'Reports';
 	const seed: Incident[] = [
 		{
 			id: 'SEN-2048',
@@ -97,6 +98,7 @@
 		{ name: 'Customers', short: 'CU', description: 'SaaS customer portfolio' },
 		{ name: 'Incidents', short: 'IN', description: 'Detection queue' },
 		{ name: 'AI Analyst', short: 'AI', description: 'Investigative intelligence' },
+		{ name: 'Response Centre', short: 'RC', description: 'Review and response' },
 		{ name: 'Assets', short: 'AS', description: 'Environment coverage' },
 		{ name: 'Reports', short: 'RP', description: 'Security intelligence' }
 	];
@@ -136,6 +138,10 @@
 	function selectView(next: View) {
 		view = next;
 		menuOpen = false;
+	}
+	function openInvestigation(id: string) {
+		selectedId = id;
+		selectView('AI Analyst');
 	}
 	function injectAlert() {
 		demoCount += 1;
@@ -223,7 +229,7 @@
 				<div>
 					<div class="eyebrow">RED HORIZON / DEFENSIVE INTELLIGENCE</div>
 					<h1>{view === 'Overview' ? 'Command Centre' : view}</h1>
-					<p>{view === 'Overview' ? 'A single view of the signals that matter. Investigate with context. Respond with control.' : view === 'Incidents' ? 'Prioritised investigations and evidence-first incident management.' : view === 'Customers' ? 'Manage customer context, scoped incident views and the future SaaS experience.' : view === 'AI Analyst' ? 'Intelligence that explains its reasoning and keeps analysts in control.' : view === 'Assets' ? 'A clear view of the systems your future SOC will protect.' : 'Decision-ready intelligence for security leaders and clients.'}</p>
+					<p>{view === 'Overview' ? 'A single view of the signals that matter. Investigate with context. Respond with control.' : view === 'Incidents' ? 'Prioritised investigations and evidence-first incident management.' : view === 'Customers' ? 'Manage customer context, scoped incident views and the future SaaS experience.' : view === 'AI Analyst' ? 'Intelligence that explains its reasoning and keeps analysts in control.' : view === 'Response Centre' ? 'Review proposed defensive actions, control approvals and explore sample response playbooks.' : view === 'Assets' ? 'A clear view of the systems your future SOC will protect.' : 'Decision-ready intelligence for security leaders and clients.'}</p>
 				</div>
 				<div class="heading-actions">
 					<button type="button" class="button-secondary" on:click={() => selectView('Reports')}>View briefing <span>↗</span></button>
@@ -337,6 +343,10 @@
 
 			{#if view === 'AI Analyst'}
 				<AnalystWorkspace {incidents} bind:selectedId bind:analysed bind:decisions />
+			{/if}
+
+			{#if view === 'Response Centre'}
+				<ResponseCentre {incidents} {analysed} bind:decisions bind:selectedId onInvestigate={openInvestigation} />
 			{/if}
 
 			{#if view === 'Assets'}

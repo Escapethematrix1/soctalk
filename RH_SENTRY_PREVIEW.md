@@ -1,0 +1,50 @@
+# RH Sentry — interactive design preview
+
+**Product:** RH Sentry, Red Horizon Cyber Group's planned AI-native SOC SaaS.  
+**Working branch:** `dev/rh-one` (legacy branch name; RH Sentry is a separate product from Red Horizon One).  
+**Preview:** `http://127.0.0.1:5173/sentry-preview`  
+**Status:** local development only. **No live security protection.**
+
+## See the preview on Windows (PowerShell)
+
+From your existing `RH_SOC/soctalk` folder in VS Code:
+
+```powershell
+git status --short
+git pull --ff-only origin dev/rh-one
+cd frontend
+pnpm check
+pnpm dev --host 127.0.0.1
+```
+
+If you are already in the `frontend` directory, **do not run `cd frontend` again**. If another Vite dev server is running, stop it with Ctrl+C before restarting. Keep the terminal open.
+
+Open `http://127.0.0.1:5173/sentry-preview`. This new route intentionally bypasses the existing SocTalk sidebar, login check and backend API calls. The original pages remain untouched. If a link opens the older `/login` page instead, ensure the address ends with `/sentry-preview` and your local branch contains the latest commit.
+
+## What to try
+
+- Switch between Command Centre, Incidents, AI Analyst, Assets and Reports using the custom sidebar.
+- Filter cases by severity and search by name/asset.
+- Select a sample incident to inspect its evidence and narrative.
+- Click **Inject demo alert** to add a synthetic case locally in your browser.
+- Generate a sample executive briefing and click **Reset demo** to restore original sample data.
+
+All incidents, security metrics, assets and AI confidence percentages are **fictional**; they are not fetched from a SIEM or AI service. No actual enforcement, endpoint isolation, or account changes occur. The label **DEMO ENVIRONMENT** is deliberately persistent.
+
+## Brand and architecture safeguards
+
+- Working brand name **RH Sentry**. No invented Red Horizon monogram/logo has been created; insert only an approved supplied logo later.
+- The preview is a new isolated SvelteKit route. Existing API clients and current SocTalk dashboard remain untouched.
+- A dev-only page load guard prevents navigation to this prototype in production builds. Production auth, tenancy and incident response will require separate implementation and independent testing.
+- Do not connect production customer accounts or real confidential logs to this prototype.
+- Some existing SocTalk routes may still show backend connection failures until its backend is configured; those failures do not affect this isolated preview.
+
+## Future phases (not implemented yet)
+
+1. Refine the RH Sentry interface and approved brand assets.
+2. Create typed, provider-neutral contracts for incidents, detections, assets and response approvals.
+3. Connect SocTalk FastAPI to the UI, with real authentication, authorisation, tenancy and audit controls.
+4. Integrate Wazuh ingestion and a tested AI investigation engine in an isolated environment.
+5. Validate detection efficacy, response safety, resilience, tenant isolation, and regulatory requirements before any pilot.
+
+The prototype is not a commercially ready SOC.

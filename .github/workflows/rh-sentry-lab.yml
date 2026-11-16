@@ -1,0 +1,35 @@
+name: RH Sentry localhost API lab tests
+
+on:
+  push:
+    branches:
+      - dev/rh-one
+    paths:
+      - 'dev/rh_sentry_lab_api/**'
+      - '.github/workflows/rh-sentry-lab.yml'
+  pull_request:
+    paths:
+      - 'dev/rh_sentry_lab_api/**'
+      - '.github/workflows/rh-sentry-lab.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-lab:
+    name: Isolated API tests (no production access)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: dev/rh_sentry_lab_api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install local lab test dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Check synthetic tenant/session API
+        run: python -m pytest -q tests

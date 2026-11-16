@@ -5,7 +5,7 @@
 	export let incidents: DemoIncident[];
 
 	const customers = demoCustomers;
-	let selectedId = 'northbridge';
+	let selectedId = 'alderwick';
 	let customerPreview = false;
 	let search = '';
 	$: customer = customers.find((c) => c.id === selectedId) ?? customers[0];

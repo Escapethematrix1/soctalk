@@ -128,7 +128,7 @@ def init_database(db_path: Path):
                        ((u,) for u, _, _ in ACCOUNTS))
         db.executemany("INSERT OR IGNORE INTO memberships VALUES (?,?,?,1)",
                        ((u, t, r) for u, r, t in ACCOUNTS if t))
-        db.executemany("INSERT OR IGNORE INTO incidents VALUES (?,?,?,?,?)", INCIDENTS)
+        db.executemany("INSERT OR IGNORE INTO incidents(id,tenant_id,title,severity,status) VALUES (?,?,?,?,?)", INCIDENTS)
 
 
 class Login(BaseModel):
@@ -180,7 +180,7 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
     init_database(db_path)
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(CORSMiddleware, allow_origins=list(ALLOWED_ORIGINS),
-                       allow_credentials=True, allow_methods=["GET", "POST"],
+                       allow_credentials=True, allow_methods=["GET", "POST", "PATCH"],
                        allow_headers=["Content-Type", "X-CSRF-Token"])
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"])
     expected_password_hash = digest(lab_password)

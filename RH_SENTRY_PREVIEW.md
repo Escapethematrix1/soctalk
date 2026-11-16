@@ -210,6 +210,21 @@ A new **API Lab** sidebar screen connects *optionally* to a separate Python/Fast
 Test the Python module separately using \`python -m pytest -q tests\` within \`dev/rh_sentry_lab_api\`. The Svelte screen remains available without running the Python API; it will show that the API is offline. Frontend \`pnpm check\` and \`pnpm test:unit\` still need to run locally after pulling the branch. **No production deployment has been made.**
 
 
+## Stage 9 — Persistent local incident management
+
+The separate Python API Lab now supports server-authorised incident changes and analyst note records stored in local SQLite.
+
+- **Server-side enforcement:** Only active analyst/lead memberships within the owning fictional organisation may change status or assignment or access internal analyst notes.
+- **CSRF:** All incident mutations require the session-bound `X-CSRF-Token`, not just the logout action.
+- **Concurrency and history:** Every successful change increments a case version, stores a history event and writes a lab audit record in one transaction. Stale versions are rejected with HTTP 409.
+- **Evidence:** Plain-text analyst notes only, linked to tenant and incident. No URL attachments, file uploads, malware artefacts or executable response commands.
+- **Frontend:** Select an incident in API Lab and open the case workspace. Customer viewers see a read-only summary; analysts can update and review note and change history.
+- **Migration:** Existing fictional SQLite records are preserved when the new columns and tables are added.
+
+Local API instructions and acceptance test sequence are in [dev/rh_sentry_lab_api/README.md](dev/rh_sentry_lab_api/README.md). **After pulling changes, stop and restart the running Python API** so it loads the updated server code. The frontend should hot-reload, but it can also be restarted if necessary.
+
+GitHub Actions runs Python API tests and Svelte/TypeScript checks on the development branch. This is only a lab milestone; it does not imply production-grade authentication, encrypted customer storage, tamper-evident audit or independent penetration testing.
+
 ## Future phases (not implemented yet)
 
 1. Refine the RH Sentry interface and approved brand assets.

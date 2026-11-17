@@ -304,6 +304,24 @@ A **real** Wazuh manager, indexer or agent is not connected; integration using g
 
 Local test command (from \`dev\rh_sentry_lab_api\`): \`.\.venv\Scripts\python.exe wazuh_replay.py --file fixtures/wazuh_training_ssh.jsonl\`. This change adds no frontend controls and requires no Python service restart.
 
+## Stage 14 — Software-first architecture and SQLite-backed Command Centre
+
+**Development decision:** VirtualBox, Wazuh and Kali are reserved for final end-to-end integration tests *after* the SOC software, security boundaries, persistent data models, services and synthetic test harness are built. See the full [RH Sentry software-first build roadmap](RH_SENTRY_BUILD_ROADMAP.md).
+
+The **Command Centre** now supports the same explicit **Simulation / Local API / SQLite** switch as Incidents and AI Analyst.
+
+- Simulation preserves the original fictional Command Centre appearance and charts. Its counts remain demonstration figures.
+- Local API / SQLite loads the tenant-specific **\`GET /api/tenants/{tenantId}/lab/overview\`** endpoint from the isolated Python service. The API checks the authenticated user's active tenant membership before querying incident totals, open critical/high cases, assignments, status distribution and the latest five cases.
+- Local mode uses actual *stored fictional* incident and synthetic event counts; no illustrative chart or cross-tenant record is silently merged into those results.
+- Fictional customer viewers see their permitted incident summary but receive \`null\` for internal synthetic event and correlation totals, rather than the analyst-only details.
+- Live sensors and live coverage remain **zero**, AI inference remains disconnected. These are not genuine customer metrics.
+- Recent case links open the authorised **Incidents → Local API / SQLite** workspace, preserving the same fictional tenant and case.
+- If the Python API is offline or login has expired, the local Command Centre fails closed with a visible prompt to use API Lab; it never substitutes simulation values as real readings.
+
+**Local acceptance:** Pull the \`dev/rh-one\` branch, restart the Python API (new read endpoint) at 127.0.0.1:8001, and keep Vite on 127.0.0.1:5173. Log in via API Lab as fictional \`alderwick-analyst\`. Open **Command Centre → Local API / SQLite**, compare the status/assignment counts against Incidents, and generate a synthetic batch in Event Pipeline to verify the event counts update when refreshed. Sign out and check that data disappears on a fresh view. Select **Simulation** to confirm the original dashboard still works.
+
+Backend tenant isolation/metrics tests and Svelte/frontend unit checks run in GitHub Actions. Browser interaction still requires the user's own local acceptance test. **No production deployment and no VM connection were performed.**
+
 ## Future phases (not implemented yet)
 
 1. Refine the RH Sentry interface and approved brand assets.

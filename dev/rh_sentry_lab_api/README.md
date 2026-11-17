@@ -159,3 +159,21 @@ On a **16 GB RAM laptop**, giving 8 GB to a Wazuh VM leaves only 8 GB for Window
 ### Validation
 
 From \`dev\rh_sentry_lab_api\` run \`.\.venv\Scripts\python.exe -m pytest -q tests\`, then restart the local Python server after pulling new code. In Event Pipeline, sign in through API Lab as fictional \`alderwick-analyst\` and test both Wazuh-format scenarios. A burst creates **three fictional event rows and one synthetic correlation**. A single event creates one row with **zero new correlations**. Other historical correlations remain visible. The associated test file is [tests/test_wazuh_fixture_adapter.py](tests/test_wazuh_fixture_adapter.py).
+
+
+## Offline Wazuh JSONL replay validator (pre-VM readiness)
+
+The training-only \`wazuh_replay.py\` script checks a *local fictional* Wazuh JSON-lines file before any VM or connector is enabled. It never calls a network endpoint, changes SQLite, installs Wazuh, imports real logs or touches the original SocTalk backend.
+
+From this \`dev\rh_sentry_lab_api\` folder:
+
+\`\`\`powershell
+.\.venv\Scripts\python.exe wazuh_replay.py --file fixtures/wazuh_training_ssh.jsonl
+.\.venv\Scripts\python.exe -m pytest -q tests
+\`\`\`
+
+Expected report: 3 validated fictional records, 1 example SSH-burst correlation, \`liveMonitoring: false\`, \`connectedWazuhManager: false\`, \`databaseModified: false\`. Full log and other untrusted original Wazuh fields never appear in the report.
+
+**This is not a real Wazuh connector.** Only generated test data is accepted, using \`TRAINING-\` hostnames and TEST-NET-1 addresses \`192.0.2.0/24\`; malformed, oversized, duplicate or genuine-source-looking inputs are rejected. Keep actual \`alerts.json\` and sensitive events out of this public repository.
+
+Follow the staged **[isolated Wazuh VirtualBox lab plan](../../RH_SENTRY_WAZUH_LAB_PLAN.md)** before attempting any real agent/manager setup. On a 16 GB Windows host, Wazuh's suggested all-in-one 8 GiB/4-vCPU/50-GB baseline requires keeping Kali powered off and evaluating host memory pressure. No VirtualBox configuration was performed by these commits.

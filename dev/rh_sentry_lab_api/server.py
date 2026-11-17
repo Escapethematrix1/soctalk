@@ -282,6 +282,7 @@ def init_database(db_path: Path):
           UNIQUE(tenant_id,run_id),
           FOREIGN KEY(run_id,tenant_id) REFERENCES detection_test_runs(id,tenant_id)
         );
+        CREATE UNIQUE INDEX IF NOT EXISTS detection_findings_tenant_fk ON detection_findings(id,tenant_id);
         CREATE TABLE IF NOT EXISTS detection_finding_reviews (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           tenant_id TEXT NOT NULL,
@@ -291,7 +292,7 @@ def init_database(db_path: Path):
           reason TEXT NOT NULL,
           version INTEGER NOT NULL,
           reviewed_at TEXT NOT NULL,
-          FOREIGN KEY(finding_id) REFERENCES detection_findings(id)
+          FOREIGN KEY(finding_id,tenant_id) REFERENCES detection_findings(id,tenant_id)
         );
         CREATE INDEX IF NOT EXISTS detection_reviews_scope ON detection_finding_reviews(tenant_id,finding_id,id DESC);
         """)

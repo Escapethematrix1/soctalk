@@ -8,6 +8,7 @@
 	import LocalCaseWorkspace from '$lib/components/sentry/LocalCaseWorkspace.svelte';
 	import LocalCommandCentre from '$lib/components/sentry/LocalCommandCentre.svelte';
 	import LocalAssets from '$lib/components/sentry/LocalAssets.svelte';
+	import LocalDetectionEngineering from '$lib/components/sentry/LocalDetectionEngineering.svelte';
 	import SyntheticEventPipeline from '$lib/components/sentry/SyntheticEventPipeline.svelte';
 	import type { DemoIncident as Incident, Severity, IncidentStatus as Status } from '$lib/sentry-demo/types';
 	// RH Sentry product-design sandbox. Core modules use simulated data.
@@ -263,7 +264,7 @@
 				<div class="breadcrumbs">PLATFORM <span>/</span> <strong>{view === 'Overview' ? 'COMMAND CENTRE' : view.toUpperCase()}</strong></div>
 			</div>
 			<div class="topbar-actions">
-				<div class="signal-tag"><span class="status-dot amber"></span> DATA SOURCE: {((view === 'Overview' || view === 'Incidents' || view === 'AI Analyst' || view === 'Assets') && incidentDataMode === 'local') || view === 'Event Pipeline' ? 'LOCAL SQLITE LAB · SYNTHETIC' : 'SIMULATED'}</div>
+				<div class="signal-tag"><span class="status-dot amber"></span> DATA SOURCE: {((view === 'Overview' || view === 'Incidents' || view === 'AI Analyst' || view === 'Assets' || view === 'Detection Engineering') && incidentDataMode === 'local') || view === 'Event Pipeline' ? 'LOCAL SQLITE LAB · SYNTHETIC' : 'SIMULATED'}</div>
 				<div class="avatar" aria-label="Demonstration operator">RH</div>
 			</div>
 		</header>
@@ -281,11 +282,11 @@
 				</div>
 			</div>
 
-			{#if view === 'Overview' || view === 'Incidents' || view === 'AI Analyst' || view === 'Assets'}
+			{#if view === 'Overview' || view === 'Incidents' || view === 'AI Analyst' || view === 'Assets' || view === 'Detection Engineering'}
 				<div class="data-source-selector" aria-label="Incident data source">
 					<div>
 						<strong>Workspace data source</strong>
-						<p>{incidentDataMode === 'simulated' ? 'Interactive fictional records and hypothetical monitoring/AI displays.' : 'Authenticated fictional case records from your localhost SQLite API. No AI inference is connected.'}</p>
+						<p>{incidentDataMode === 'simulated' ? 'Interactive fictional records and hypothetical monitoring/AI displays.' : 'Authenticated fictional customer records from the local SQLite API. No live monitoring or AI engine is connected.'}</p>
 					</div>
 					<div class="data-source-buttons">
 						<button type="button" class:chosen={incidentDataMode === 'simulated'} aria-pressed={incidentDataMode === 'simulated'} on:click={() => (incidentDataMode = 'simulated')}>Simulation</button>
@@ -428,8 +429,13 @@
 				<ResponseCentre {incidents} {analysed} bind:decisions bind:selectedId onInvestigate={openInvestigation} />
 			{/if}
 
-			{#if view === 'Detection Engineering'}
+			{#if view === 'Detection Engineering' && incidentDataMode === 'simulated'}
 				<DetectionEngineering onOpenIncident={openLinkedDetectionIncident} />
+			{/if}
+			{#if view === 'Detection Engineering' && incidentDataMode === 'local'}
+				<LocalDetectionEngineering bind:selectedTenantId={localTenantId}
+					csrf={labSession?.csrf ?? ''} labSessionUser={labSession?.user ?? ''}
+					onOpenApiLab={openLocalApiLab} onOpenPipeline={() => selectView('Event Pipeline')}/>
 			{/if}
 
 			{#if view === 'Security Architecture'}

@@ -247,3 +247,28 @@ def test_unlinking_seeded_relation_stays_removed_after_restart(lab):
         login(reopened, "alderwick-analyst")
         assert reopened.get(linked_path).json()["items"] == []
         assert reopened.get(asset_path(asset="AST-ALD-001")).json()["version"] == 2
+
+
+def test_legacy_lab_database_upgrades_without_resetting_existing_incidents(tmp_path):
+    path = tmp_path / "older-lab.sqlite3"
+    with sqlite3.connect(path) as db:
+        db.execute("CREATE TABLE tenants (id TEXT PRIMARY KEY,name TEXT NOT NULL)")
+        db.execute("INSERT INTO tenants VALUES ('alderwick','Alderwick Logistics')")
+        db.execute("CREATE TABLE incidents (id TEXT NOT NULL, tenant_id TEXT NOT NULL, "
+                   "title TEXT NOT NULL, severity TEXT NOT NULL, status TEXT NOT NULL, "
+                   "version INTEGER NOT NULL DEFAULT 1, assigned_to TEXT, "
+                   "PRIMARY KEY(id,tenant_id))")
+        db.execute("INSERT INTO incidents VALUES "
+                   "('SEN-LEGACY','alderwick','Pre-existing fictional incident','high','investigating',8,NULL)")
+    with TestClient(create_app(path, PASSWORD)) as app:
+        login(app, "alderwick-analyst")
+        upgraded = app.get("/api/tenants/alderwick/incidents/SEN-LEGACY")
+        assert upgraded.status_code == 200
+        assert upgraded.json()["version"] == 8
+        inventory = app.get("/api/tenants/alderwick/assets")
+        assert inventory.status_code == 200
+        assert len(inventory.json()["items"]) == 4
+        assert all(item["monitoringState"] == "not_connected" for item in inventory.json()["items"])
+    with sqlite3.connect(path) as db:
+        assert db.execute("SELECT version FROM incidents WHERE id='SEN-LEGACY'").fetchone()[0] == 8
+        assert db.execute("SELECT COUNT(*) FROM assets WHERE tenant_id='alderwick'").fetchone()[0] == 4

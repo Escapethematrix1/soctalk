@@ -26,6 +26,7 @@
 			assigned: number;
 			byStatus: Record<string, number>;
 		};
+		assetSummary: {registered:number; active:number; maintenance:number; retired:number; connected:number};
 		syntheticEventCount: number | null;
 		syntheticCorrelationCount: number | null;
 		recentIncidents: LabCase[];
@@ -88,7 +89,7 @@
 			if (destroyed || serial !== requestId || scope !== selectedTenantId) return;
 			if (result.tenantId !== scope || result.source !== 'local-sqlite-fictional' ||
 				result.liveTelemetry !== false || result.liveSensors !== 0 ||
-				result.aiAnalysisConnected !== false ||
+				result.aiAnalysisConnected !== false || result.assetSummary.connected !== 0 ||
 				result.recentIncidents.some((item) => item.tenantId !== scope)) {
 				throw new Error('Unexpected local API response; dashboard metrics withheld.');
 			}
@@ -188,7 +189,7 @@
 				<div><span>OPEN INVESTIGATIONS</span><strong>{summary.incidentSummary.open.toString().padStart(2, '0')}</strong><small>{summary.incidentSummary.total} total sample records</small></div>
 				<div><span>OPEN CRITICAL CASES</span><strong class="red">{summary.incidentSummary.critical.toString().padStart(2, '0')}</strong><small>SQLite severity and status</small></div>
 				<div><span>OPEN HIGH-SEVERITY CASES</span><strong>{summary.incidentSummary.high.toString().padStart(2, '0')}</strong><small>Persisted fictional cases</small></div>
-				<div><span>LIVE MONITORED ASSETS</span><strong>00</strong><small>Zero connected sensors</small></div>
+				<div><span>REGISTERED ASSETS</span><strong>{summary.assetSummary.registered.toString().padStart(2, '0')}</strong><small>{summary.assetSummary.active} active · 0 monitored</small></div>
 			</div>
 			<div class="data-row">
 				<div class="data-panel">
@@ -209,7 +210,8 @@
 					<div class="source-status">
 						<div><span>Stored synthetic events</span><strong>{summary.syntheticEventCount === null ? 'Restricted' : summary.syntheticEventCount}</strong></div>
 						<div><span>Example correlations</span><strong>{summary.syntheticCorrelationCount === null ? 'Restricted' : summary.syntheticCorrelationCount}</strong></div>
-						<div><span>Live agents</span><strong>0</strong></div>
+						<div><span>Registered fictional assets</span><strong>{summary.assetSummary.registered}</strong></div>
+						<div><span>Live agents</span><strong>{summary.assetSummary.connected}</strong></div>
 						<div><span>AI investigation engine</span><strong>Not connected</strong></div>
 						<div><span>Live coverage</span><strong>0%</strong></div>
 					</div>

@@ -322,6 +322,18 @@ The **Command Centre** now supports the same explicit **Simulation / Local API /
 
 Backend tenant isolation/metrics tests and Svelte/frontend unit checks run in GitHub Actions. Browser interaction still requires the user's own local acceptance test. **No production deployment and no VM connection were performed.**
 
+## Stage 15 — Tenant-scoped persistent Asset Management
+
+The Assets section now has Simulation and Local API / SQLite modes. The existing visual demonstration is preserved. The local mode retrieves registered fictional systems through the authenticated backend and supports analyst-only asset registration/updates, criticality and lifecycle, case associations and audit history.
+
+The new asset API is scoped to customer membership in server-side SQL. Mutations require analyst/lead role, CSRF, strict field validation and optimistic concurrency. Asset–incident associations use tenant-constrained composite database foreign keys. Read-only customer viewers cannot see internal asset change history or modify records. An intentionally removed seed link will not return after a Python restart.
+
+No asset is genuinely monitored: connected sensor counts stay at 0, monitoringState is not_connected, lastSeen is null, and no product feature claims agent status or risk assurance. Registered asset totals are exposed separately in Command Centre → Local API / SQLite.
+
+**Local acceptance:** Pull dev/rh-one; restart only Python API (new database tables/endpoints); keep Vite running; sign in through API Lab as fictional alderwick-analyst. In Assets → Local API / SQLite, inspect seeded customer-owned assets, open a linked incident, register a fictional training asset, edit it, link/unlink a case, and verify changes persist after refresh. Then sign in as a customer viewer to confirm read-only access. See dev/rh_sentry_lab_api/README.md for exact routes.
+
+Backend and frontend automation has passed; direct interaction still requires a browser check on the developer's laptop. VirtualBox/Wazuh remains the final integration stage after core SOC software and security infrastructure are implemented.
+
 ## Future phases (not implemented yet)
 
 1. Refine the RH Sentry interface and approved brand assets.

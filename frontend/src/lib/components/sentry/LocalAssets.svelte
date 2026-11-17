@@ -368,6 +368,7 @@
 		<div><span class="eyebrow">RH SENTRY / ASSET INTELLIGENCE</span><h2>Customer asset register</h2>
 			<p>Lab identity: {identity || 'No session'} · {role || 'Read-only / not authorised'}</p></div>
 		<div class="actions">
+			{#if canEdit}<button class="primary" type="button" aria-expanded={createOpen} on:click={() => (createOpen = !createOpen)}>{createOpen ? 'Close registration' : '+ Register Asset'}</button>{/if}
 			<button class="secondary" type="button" disabled={loading || busy} on:click={() => void connect()}>Refresh API ↻</button>
 			<button class="secondary" type="button" on:click={onOpenApiLab}>Open API Lab ↗</button>
 		</div>
@@ -460,13 +461,11 @@
 				</section>
 			</div>
 
-			{#if canEdit}
+			{#if canEdit && createOpen}
 				<div class="create-container">
-					<button type="button" class="secondary" on:click={() => (createOpen = !createOpen)} aria-expanded={createOpen}>{createOpen ? 'Hide asset registration' : '+ Register fictional asset'}</button>
-					{#if createOpen}
-						<div class="panel new-asset">
-							<span class="eyebrow">FICTIONAL INVENTORY / ANALYST INPUT</span><h3>Register a training asset</h3>
-							<div class="edit-grid">
+					<div class="panel new-asset">
+						<span class="eyebrow">FICTIONAL INVENTORY / ANALYST INPUT</span><h3>Register a training asset</h3>
+						<div class="edit-grid">
 								<label>Name<input bind:value={newName} maxlength="80" placeholder="TRAINING-WIN-42"/></label>
 								<label>Type<select bind:value={newType}>{#each types as type}<option value={type}>{type}</option>{/each}</select></label>
 								<label>Environment<input bind:value={newEnvironment} maxlength="50"/></label>
@@ -477,8 +476,8 @@
 							<button type="button" class="primary" disabled={busy || newName.trim().length < 3} on:click={createAsset}>{busy ? 'Saving...' : 'Register fictional asset'}</button>
 							<p class="minor">Use fictional names only. This creates an inventory record, not an agent or monitor.</p>
 						</div>
-					{/if}
 				</div>
+			</div>
 			{/if}
 		{/if}
 	{/if}

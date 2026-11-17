@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 from event_pipeline import generate_scenario, scenario_catalogue
+from detection_lab import RULE_TEMPLATES, evaluate as evaluate_detection, validate_threshold
 
 COOKIE = "rh_sentry_lab_session"
 SESSION_SECONDS = 3600
@@ -223,6 +224,76 @@ def init_database(db_path: Path):
           FOREIGN KEY(asset_id,tenant_id) REFERENCES assets(id,tenant_id)
         );
         CREATE INDEX IF NOT EXISTS asset_history_lookup ON asset_history(tenant_id,asset_id,id DESC);
+        CREATE TABLE IF NOT EXISTS detection_rules (
+          id TEXT NOT NULL,
+          tenant_id TEXT NOT NULL REFERENCES tenants(id),
+          strategy TEXT NOT NULL CHECK(strategy IN ('identity_travel','encoded_powershell','wazuh_ssh_burst')),
+          title TEXT NOT NULL,
+          description TEXT NOT NULL,
+          threshold INTEGER NOT NULL,
+          status TEXT NOT NULL CHECK(status IN ('draft','test_enabled','disabled')),
+          version INTEGER NOT NULL DEFAULT 1,
+          created_by TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY(id,tenant_id)
+        );
+        CREATE TABLE IF NOT EXISTS detection_rule_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tenant_id TEXT NOT NULL,
+          rule_id TEXT NOT NULL,
+          actor TEXT NOT NULL,
+          action TEXT NOT NULL,
+          detail TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          occurred_at TEXT NOT NULL,
+          FOREIGN KEY(rule_id,tenant_id) REFERENCES detection_rules(id,tenant_id)
+        );
+        CREATE INDEX IF NOT EXISTS detection_history_scope ON detection_rule_history(tenant_id,rule_id,id DESC);
+        CREATE UNIQUE INDEX IF NOT EXISTS synthetic_batches_tenant_fk ON synthetic_event_batches(id,tenant_id);
+        CREATE TABLE IF NOT EXISTS detection_test_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tenant_id TEXT NOT NULL,
+          rule_id TEXT NOT NULL,
+          batch_id INTEGER NOT NULL,
+          idempotency_key TEXT NOT NULL,
+          strategy TEXT NOT NULL,
+          threshold INTEGER NOT NULL,
+          rule_version INTEGER NOT NULL,
+          total_events INTEGER NOT NULL,
+          matched_ids_json TEXT NOT NULL,
+          outcome TEXT NOT NULL CHECK(outcome IN ('matched','not_matched')),
+          tested_by TEXT NOT NULL,
+          tested_at TEXT NOT NULL,
+          UNIQUE(tenant_id,rule_id,idempotency_key),
+          FOREIGN KEY(rule_id,tenant_id) REFERENCES detection_rules(id,tenant_id),
+          FOREIGN KEY(batch_id,tenant_id) REFERENCES synthetic_event_batches(id,tenant_id)
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS detection_run_tenant_fk ON detection_test_runs(id,tenant_id);
+        CREATE INDEX IF NOT EXISTS detection_run_scope ON detection_test_runs(tenant_id,id DESC);
+        CREATE TABLE IF NOT EXISTS detection_findings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tenant_id TEXT NOT NULL,
+          run_id INTEGER NOT NULL,
+          disposition TEXT NOT NULL DEFAULT 'unreviewed' CHECK(disposition IN ('unreviewed','false_positive','needs_investigation')),
+          version INTEGER NOT NULL DEFAULT 1,
+          reviewed_by TEXT,
+          reviewed_at TEXT,
+          UNIQUE(tenant_id,run_id),
+          FOREIGN KEY(run_id,tenant_id) REFERENCES detection_test_runs(id,tenant_id)
+        );
+        CREATE TABLE IF NOT EXISTS detection_finding_reviews (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tenant_id TEXT NOT NULL,
+          finding_id INTEGER NOT NULL,
+          actor TEXT NOT NULL,
+          disposition TEXT NOT NULL,
+          reason TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          reviewed_at TEXT NOT NULL,
+          FOREIGN KEY(finding_id) REFERENCES detection_findings(id)
+        );
+        CREATE INDEX IF NOT EXISTS detection_reviews_scope ON detection_finding_reviews(tenant_id,finding_id,id DESC);
         """)
         # Non-destructive migration for existing local lab DBs. Never reset
         # seeded cases or remove prior demo audit records.
@@ -244,6 +315,18 @@ def init_database(db_path: Path):
             "(id,tenant_id,display_name,asset_type,environment,owner,criticality,lifecycle,created_at,updated_at)"
             " VALUES (?,?,?,?,?,?,?,?,?,?)",
             (tuple(item) + (seed_time, seed_time) for item in ASSET_SEEDS),
+        )
+        db.executemany(
+            "INSERT OR IGNORE INTO detection_rules "
+            "(id,tenant_id,strategy,title,description,threshold,status,version,created_by,created_at,updated_at) "
+            "VALUES (?,?,?,?,?,?,?,1,?,?,?)",
+            (
+                ("RHS-DET-001" if kind == "identity_travel" else
+                 "RHS-DET-002" if kind == "encoded_powershell" else "RHS-WAZ-SYN-001",
+                 tenant, kind, template["title"], template["description"], template["threshold"],
+                 "draft", "system-fixture", seed_time, seed_time)
+                for tenant, _ in TENANTS for kind, template in RULE_TEMPLATES.items()
+            ),
         )
         # Seed the example relationships only once: a deliberate unlink must
         # stay removed when the local API restarts.
@@ -332,6 +415,69 @@ class UpdateIncident(BaseModel):
     expectedVersion: int = Field(ge=1)
     status: IncidentStatus | None = None
     assignedTo: str | None = Field(default=None, max_length=60)
+
+
+
+DetectionStrategy = Literal["identity_travel", "encoded_powershell", "wazuh_ssh_burst"]
+DetectionStatus = Literal["draft", "test_enabled", "disabled"]
+FindingDisposition = Literal["false_positive", "needs_investigation"]
+
+
+class CreateDetectionRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    strategy: DetectionStrategy
+    title: str = Field(min_length=5, max_length=90, pattern=r"^[A-Za-z0-9][A-Za-z0-9 ._():+-]*$")
+    description: str = Field(min_length=10, max_length=240, pattern=r"^[A-Za-z0-9][A-Za-z0-9 ._(),:+/-]*$")
+    threshold: int = Field(ge=1, le=5000)
+
+
+class UpdateDetectionRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expectedVersion: int = Field(ge=1)
+    title: str | None = Field(default=None, min_length=5, max_length=90, pattern=r"^[A-Za-z0-9][A-Za-z0-9 ._():+-]*$")
+    description: str | None = Field(default=None, min_length=10, max_length=240, pattern=r"^[A-Za-z0-9][A-Za-z0-9 ._(),:+/-]*$")
+    threshold: int | None = Field(default=None, ge=1, le=5000)
+    status: DetectionStatus | None = None
+
+
+class RunDetectionTest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expectedVersion: int = Field(ge=1)
+    batchId: int = Field(ge=1)
+    idempotencyKey: str = Field(min_length=12, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+class ReviewDetectionFinding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expectedVersion: int = Field(ge=1)
+    disposition: FindingDisposition
+    reason: str = Field(min_length=12, max_length=500, pattern=r"^[^\r\n\x00-\x1f]+$")
+
+
+def rule_json(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"], "tenantId": row["tenant_id"],
+        "strategy": row["strategy"], "title": row["title"],
+        "description": row["description"], "threshold": row["threshold"],
+        "thresholdUnit": RULE_TEMPLATES[row["strategy"]]["thresholdUnit"],
+        "minThreshold": RULE_TEMPLATES[row["strategy"]]["minThreshold"],
+        "maxThreshold": RULE_TEMPLATES[row["strategy"]]["maxThreshold"],
+        "status": row["status"], "version": row["version"],
+        "updatedAt": row["updated_at"], "liveDetection": False,
+    }
+
+
+def detection_run_json(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"], "tenantId": row["tenant_id"],
+        "ruleId": row["rule_id"], "batchId": row["batch_id"],
+        "ruleVersion": row["rule_version"], "strategy": row["strategy"],
+        "threshold": row["threshold"], "outcome": row["outcome"],
+        "eventCount": row["total_events"],
+        "matchedEventIds": json.loads(row["matched_ids_json"]),
+        "testedBy": row["tested_by"], "testedAt": row["tested_at"],
+        "liveDetection": False,
+    }
 
 
 class SubmitSyntheticScenario(BaseModel):

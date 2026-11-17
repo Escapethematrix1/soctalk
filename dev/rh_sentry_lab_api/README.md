@@ -177,3 +177,31 @@ Expected report: 3 validated fictional records, 1 example SSH-burst correlation,
 **This is not a real Wazuh connector.** Only generated test data is accepted, using \`TRAINING-\` hostnames and TEST-NET-1 addresses \`192.0.2.0/24\`; malformed, oversized, duplicate or genuine-source-looking inputs are rejected. Keep actual \`alerts.json\` and sensitive events out of this public repository.
 
 Follow the staged **[isolated Wazuh VirtualBox lab plan](../../RH_SENTRY_WAZUH_LAB_PLAN.md)** before attempting any real agent/manager setup. On a 16 GB Windows host, Wazuh's suggested all-in-one 8 GiB/4-vCPU/50-GB baseline requires keeping Kali powered off and evaluating host memory pressure. No VirtualBox configuration was performed by these commits.
+
+## Persistent fictional Asset Management
+
+Assets → Local API / SQLite now uses a versioned, customer-scoped inventory stored in the same local SQLite database. Asset registration never enrolls an endpoint or creates a monitor. All returned assets have monitoringState=not_connected and lastSeen=null.
+
+Routes (all under /api/tenants/{tenantId}):
+
+- GET /assets and GET /assets/{assetId} — authorised customer members can read their fictional inventory.
+- POST /assets — SOC analysts/leads can register fictional assets (CSRF-protected; maximum 200 records per tenant).
+- PATCH /assets/{assetId} — analysts can update approved fields using expectedVersion concurrency checks.
+- GET /assets/{assetId}/incidents — tenant-scoped links to existing fictional cases.
+- POST /assets/{assetId}/incidents and DELETE /assets/{assetId}/incidents/{incidentId} — analyst-only CSRF-protected, versioned links/unlinks, checked against the **same tenant**.
+- GET /assets/{assetId}/history — analyst-only versioned change journal.
+
+All successful changes commit local audit entries atomically. No monitoring state, agent identity, network target or telemetry URL can be set by the client. Initial example links are seeded only once, so a deliberate unlink persists across restarts.
+
+### Local browser acceptance
+
+1. Pull dev/rh-one from the soctalk repository root, preserving local modifications before pulling.
+2. In the Python terminal under dev\rh_sentry_lab_api, press Ctrl+C and rerun .\.venv\Scripts\python.exe run.py. The existing lab password must be available in this PowerShell session.
+3. Keep the Svelte frontend running at 127.0.0.1:5173, and sign in as fictional alderwick-analyst through API Lab.
+4. Open Assets → Local API / SQLite. Expect four Alderwick training records and **00 live monitored**.
+5. Select WIN-DEMO-07 and open its linked fictional incident SEN-2047. Return, register TRAINING-WIN-42, edit its lifecycle and link another case.
+6. Refresh/restart and verify the new asset, version, incident associations and history persist.
+7. Log in as alderwick-viewer to verify editing is unavailable; switch to Simulation to verify the earlier visual cards.
+8. In Command Centre → Local API / SQLite, verify the registered-asset count changes while live monitored sensors remain zero.
+
+Run Python API tests from the lab directory: .\.venv\Scripts\python.exe -m pytest -q tests. Automated security/unit validation does not replace local browser acceptance or commercial security review.

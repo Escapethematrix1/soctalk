@@ -250,3 +250,57 @@ def test_disabled_rule_cannot_run_and_does_not_mutate_history(lab):
     assert run(client,csrf,batch,version=2).status_code == 409
     with sqlite3.connect(path) as db:
         assert db.execute("SELECT COUNT(*) FROM detection_test_runs").fetchone()[0] == 0
+
+
+def test_detection_run_and_review_survive_restart_with_snapshot(lab):
+    client, path = lab
+    csrf = login(client)
+    batch = ingest(client, csrf)
+    tested = run(client, csrf, batch).json()
+    finding = client.get(base() + "/detection-findings").json()["items"][0]
+    review = client.post(base() + f"/detection-findings/{finding['id']}/review",
+        headers={"X-CSRF-Token": csrf},
+        json={"expectedVersion": 1, "disposition": "needs_investigation",
+              "reason": "Fictional behaviour deserves analyst examination."})
+    assert review.status_code == 200, review.text
+    changed = client.patch(base() + "/detection-rules/RHS-DET-001",
+        headers={"X-CSRF-Token":csrf},
+        json={"expectedVersion":1,"threshold":1200})
+    assert changed.status_code == 200, changed.text
+    with TestClient(create_app(path, PW)) as restored:
+        login(restored)
+        runs = restored.get(base() + "/detection-runs").json()["items"]
+        assert len(runs) == 1
+        assert runs[0]["id"] == tested["id"]
+        assert runs[0]["ruleVersion"] == 1
+        assert runs[0]["threshold"] == 500
+        assert len(runs[0]["matchedEventIds"]) == 2
+        findings = restored.get(base() + "/detection-findings").json()["items"]
+        assert len(findings) == 1
+        assert findings[0]["disposition"] == "needs_investigation"
+        assert findings[0]["version"] == 2
+        reviewed = restored.get(base() + f"/detection-findings/{finding['id']}/reviews").json()["items"]
+        assert len(reviewed) == 1
+        assert reviewed[0]["reason"].startswith("Fictional behaviour")
+        rule = next(x for x in restored.get(base() + "/detection-rules").json()["items"]
+                    if x["id"] == "RHS-DET-001")
+        assert rule["version"] == 2
+        assert rule["threshold"] == 1200
+
+
+def test_database_disallows_cross_tenant_finding_review_links(lab):
+    client, path = lab
+    csrf = login(client)
+    batch = ingest(client, csrf)
+    run(client, csrf, batch)
+    finding = client.get(base() + "/detection-findings").json()["items"][0]
+    with sqlite3.connect(path) as db:
+        db.execute("PRAGMA foreign_keys=ON")
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute(
+                "INSERT INTO detection_finding_reviews "
+                "(tenant_id,finding_id,actor,disposition,reason,version,reviewed_at)"
+                "VALUES (?,?,?,?,?,?,?)",
+                ("summit", finding["id"], "lab-auditor", "false_positive",
+                 "Cross tenant direct insertion must fail", 2, "2026-11-17T00:00:00+00:00")
+            )

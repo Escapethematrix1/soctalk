@@ -334,6 +334,16 @@ No asset is genuinely monitored: connected sensor counts stay at 0, monitoringSt
 
 Backend and frontend automation has passed; direct interaction still requires a browser check on the developer's laptop. VirtualBox/Wazuh remains the final integration stage after core SOC software and security infrastructure are implemented.
 
+## Stage 16 — Persistent synthetic Detection Engineering
+
+The Detection Engineering page now supports **Simulation / Local API / SQLite**. The existing static visual rule demonstration is preserved. Local mode exposes a tenant-scoped, authenticated rule catalogue, versioned rule edits, synthetic test-batch picker, historical test runs, matched event provenance, false-positive disposition and analyst review journal.
+
+The deterministic rule strategies are intentionally allowlisted: fictional impossible-travel sign-ins, encoded PowerShell with an untrusted parent, and Wazuh-format training SSH failure bursts. No arbitrary query evaluation, raw live events, AI inference or agent commands are accepted. All tests are **manual** against existing stored synthetic event batches; a positive result is a review-only training finding, never an automatically created incident.
+
+**Local acceptance:** Pull dev/rh-one, restart Python API to migrate new SQLite tables (existing fictional cases/assets preserved), keep Vite running. Sign in through API Lab as alderwick-analyst, ingest a synthetic impossible-travel batch in Event Pipeline, open Detection Engineering → Local API / SQLite, select RHS-DET-001 and the new batch, then run a synthetic test. Expect a matched outcome with two supporting event IDs and one unreviewed finding. Record a false-positive disposition with a reason, refresh and verify the review persists. Verify ordinary-signins gives no positive finding; a customer viewer cannot access internal rules. The original Simulation mode remains available.
+
+The Assets page's **+ Register Asset** action has been moved to its upper toolbar, with the form placed immediately below the tenant selector. No production deployment or VirtualBox activity occurred.
+
 ## Future phases (not implemented yet)
 
 1. Refine the RH Sentry interface and approved brand assets.

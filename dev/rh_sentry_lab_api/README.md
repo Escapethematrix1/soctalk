@@ -205,3 +205,45 @@ All successful changes commit local audit entries atomically. No monitoring stat
 8. In Command Centre → Local API / SQLite, verify the registered-asset count changes while live monitored sensors remain zero.
 
 Run Python API tests from the lab directory: .\.venv\Scripts\python.exe -m pytest -q tests. Automated security/unit validation does not replace local browser acceptance or commercial security review.
+
+## Persistent synthetic Detection Engineering
+
+RH Sentry's **Detection Engineering → Local API / SQLite** screen manages only fictional rule definitions and manual evaluations of pre-existing synthetic event batches. Rules never subscribe to Wazuh, poll devices, produce operational alert notifications, execute endpoint responses or create incidents.
+
+Three allowlisted, fixed detection strategies are supported:
+
+- identity_travel: two fictional sign-ins for one account within 15 minutes, from different regions, with a bounded distance threshold (100–5000 km).
+- encoded_powershell: a fictional endpoint-process event flagged encoded_command=true and parent_trusted=false (fixed threshold 1).
+- wazuh_ssh_burst: three or more fabricated Wazuh-format SSH failures within five minutes for the same agent, rule and reserved TEST-NET source (bounded threshold 3–20).
+
+All authenticated endpoints below are under /api/tenants/{tenantId}/lab and **SOC analyst/lead only**. All mutations require the session's CSRF token and a permitted local browser origin.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | /detection-templates | Safe strategies and threshold bounds |
+| GET / POST | /detection-rules | List or register tenant-owned training rules |
+| PATCH | /detection-rules/{ruleId} | Versioned changes to title, description, threshold or status |
+| GET | /detection-rules/{ruleId}/history | Versioned rule modification journal |
+| GET | /event-batches | Tenant-owned batches available for manual evaluation |
+| POST | /detection-rules/{ruleId}/test | Idempotent test against a stored batch, saving provenance |
+| GET | /detection-runs | Test version/threshold snapshots and matched event IDs |
+| GET | /detection-findings | Positive synthetic matches awaiting analyst disposition |
+| POST | /detection-findings/{findingId}/review | False-positive or needs-investigation review and reason |
+| GET | /detection-findings/{findingId}/reviews | Read versioned disposition history |
+
+Rules start as drafts. Test-enabled rules and drafts can be evaluated manually; disabled rules cannot. **Test-enabled is not a live detector.** A match saves a human-review training finding with supporting source IDs. A false-positive disposition is a judgement about the test fixture, not a production detection quality measurement.
+
+Controls: fixed rule strategies, strict request schemas, bounded thresholds and test batch sizes, at most 30 local rules and 100 stored test runs per tenant, atomic SQLite transactions, optimistic concurrency, replay tokens, tenant-scoped SQL and foreign keys, auditor journal. **This does not replace production IAM, detection tuning QA, an isolated reliable ingest service or an operational SOC.**
+
+### Local acceptance
+
+1. From the repository root, pull dev/rh-one after preserving uncommitted work.
+2. In the Python backend terminal under dev\rh_sentry_lab_api, Ctrl+C then .\.venv\Scripts\python.exe run.py. Reuse the temporary lab password configured in that terminal.
+3. Keep Svelte on 127.0.0.1:5173; open /sentry-preview. Log in through API Lab as fictional alderwick-analyst.
+4. In Event Pipeline create an impossible-travel synthetic batch. Return to Detection Engineering → Local API / SQLite and choose RHS-DET-001 plus that batch.
+5. Run a manual test. Expect a matched result and two synthetic event IDs. A new unreviewed training finding should appear; no incident gets created.
+6. Enter a 12+ character reason and review the finding as false positive. Refresh the page: stored run, outcome and review history should persist.
+7. Try ordinary-signins: should return not_matched and create no finding. A disabled rule should refuse testing. Sign in as alderwick-viewer to confirm internal rule visibility is denied.
+8. Switch back to Simulation and verify the original demonstration is unchanged. On Assets, + Register Asset appears in the upper toolbar for analysts with the form directly below the customer selector.
+
+Backend checks: .\.venv\Scripts\python.exe -m pytest -q tests. Frontend checks: from frontend run pnpm check and pnpm exec vitest run src/lib/sentry-contracts src/lib/sentry-demo src/lib/sentry-lab.

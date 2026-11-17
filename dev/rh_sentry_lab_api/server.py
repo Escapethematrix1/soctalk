@@ -47,6 +47,28 @@ INCIDENTS = [
 ]
 
 
+# Fixed, explicitly fictional inventory records. This is not agent discovery:
+# none of these devices are monitored, regardless of lifecycle or criticality.
+ASSET_SEEDS = [
+    ("AST-ALD-001", "alderwick", "WIN-DEMO-07", "endpoint", "workstation", "IT team", "high", "active"),
+    ("AST-ALD-002", "alderwick", "M365-DEMO", "cloud", "tenant", "IT team", "critical", "active"),
+    ("AST-ALD-003", "alderwick", "ENTRA-DEMO", "identity", "directory", "IT team", "high", "active"),
+    ("AST-ALD-004", "alderwick", "FW-EDGE-DEMO-01", "network", "perimeter", "IT team", "medium", "maintenance"),
+    ("AST-HBR-001", "harbourline", "M365-HL-DEMO", "cloud", "tenant", "IT team", "high", "active"),
+    ("AST-HBR-002", "harbourline", "ENTRA-HL-DEMO", "identity", "directory", "IT team", "high", "active"),
+    ("AST-SUM-001", "summit", "FW-SUM-DEMO", "network", "perimeter", "IT team", "high", "active"),
+    ("AST-SUM-002", "summit", "LNX-SUM-DEMO", "server", "production", "IT team", "medium", "active"),
+]
+ASSET_INCIDENT_SEEDS = [
+    ("alderwick", "AST-ALD-002", "SEN-2048"),
+    ("alderwick", "AST-ALD-001", "SEN-2047"),
+    ("harbourline", "AST-HBR-001", "SEN-2045"),
+    ("harbourline", "AST-HBR-002", "SEN-2044"),
+    ("summit", "AST-SUM-001", "SEN-2046"),
+    ("summit", "AST-SUM-002", "SEN-2043"),
+]
+
+
 def digest(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
@@ -155,6 +177,49 @@ def init_database(db_path: Path):
           PRIMARY KEY(correlation_id,event_id)
         );
         CREATE INDEX IF NOT EXISTS synthetic_correlations_tenant_idx ON synthetic_correlations(tenant_id,id DESC);
+
+        CREATE TABLE IF NOT EXISTS assets (
+          id TEXT NOT NULL,
+          tenant_id TEXT NOT NULL REFERENCES tenants(id),
+          display_name TEXT NOT NULL,
+          asset_type TEXT NOT NULL CHECK(asset_type IN
+            ('endpoint','server','network','identity','cloud','application')),
+          environment TEXT NOT NULL,
+          owner TEXT,
+          criticality TEXT NOT NULL CHECK(criticality IN
+            ('low','medium','high','critical')),
+          lifecycle TEXT NOT NULL CHECK(lifecycle IN
+            ('active','maintenance','retired')),
+          version INTEGER NOT NULL DEFAULT 1 CHECK(version >= 1),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY(id,tenant_id),
+          UNIQUE(tenant_id,display_name)
+        );
+        CREATE INDEX IF NOT EXISTS assets_tenant_idx ON assets(tenant_id,created_at DESC);
+        CREATE TABLE IF NOT EXISTS asset_incident_links (
+          tenant_id TEXT NOT NULL,
+          asset_id TEXT NOT NULL,
+          incident_id TEXT NOT NULL,
+          created_by TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY(tenant_id,asset_id,incident_id),
+          FOREIGN KEY(asset_id,tenant_id) REFERENCES assets(id,tenant_id),
+          FOREIGN KEY(incident_id,tenant_id) REFERENCES incidents(id,tenant_id)
+        );
+        CREATE INDEX IF NOT EXISTS asset_incident_lookup ON asset_incident_links(tenant_id,incident_id);
+        CREATE TABLE IF NOT EXISTS asset_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tenant_id TEXT NOT NULL,
+          asset_id TEXT NOT NULL,
+          actor TEXT NOT NULL,
+          action TEXT NOT NULL,
+          detail TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          occurred_at TEXT NOT NULL,
+          FOREIGN KEY(asset_id,tenant_id) REFERENCES assets(id,tenant_id)
+        );
+        CREATE INDEX IF NOT EXISTS asset_history_lookup ON asset_history(tenant_id,asset_id,id DESC);
         """)
         # Non-destructive migration for existing local lab DBs. Never reset
         # seeded cases or remove prior demo audit records.
@@ -170,11 +235,75 @@ def init_database(db_path: Path):
         db.executemany("INSERT OR IGNORE INTO memberships VALUES (?,?,?,1)",
                        ((u, t, r) for u, r, t in ACCOUNTS if t))
         db.executemany("INSERT OR IGNORE INTO incidents(id,tenant_id,title,severity,status) VALUES (?,?,?,?,?)", INCIDENTS)
+        seed_time = datetime.now(timezone.utc).isoformat()
+        db.executemany(
+            "INSERT OR IGNORE INTO assets"
+            "(id,tenant_id,display_name,asset_type,environment,owner,criticality,lifecycle,created_at,updated_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (tuple(item) + (seed_time, seed_time) for item in ASSET_SEEDS),
+        )
+        db.executemany(
+            "INSERT OR IGNORE INTO asset_incident_links "
+            "(tenant_id,asset_id,incident_id,created_by,created_at) VALUES (?,?,?,?,?)",
+            ((tenant, asset, incident, "system-fixture", seed_time)
+             for tenant, asset, incident in ASSET_INCIDENT_SEEDS),
+        )
+
 
 
 class Login(BaseModel):
     username: str = Field(min_length=3, max_length=60)
     password: str = Field(min_length=1, max_length=256)
+
+
+AssetType = Literal["endpoint", "server", "network", "identity", "cloud", "application"]
+AssetCriticality = Literal["low", "medium", "high", "critical"]
+AssetLifecycle = Literal["active", "maintenance", "retired"]
+
+
+class CreateAsset(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    displayName: str = Field(min_length=3, max_length=80, pattern=r"^[A-Za-z0-9][A-Za-z0-9 ._-]*$")
+    assetType: AssetType
+    environment: str = Field(min_length=2, max_length=50, pattern=r"^[A-Za-z0-9][A-Za-z0-9 ._-]*$")
+    owner: str | None = Field(default=None, min_length=2, max_length=60, pattern=r"^[A-Za-z0-9][A-Za-z0-9 ._-]*$")
+    criticality: AssetCriticality = "medium"
+    lifecycle: AssetLifecycle = "active"
+
+
+class UpdateAsset(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expectedVersion: int = Field(ge=1)
+    displayName: str | None = Field(default=None, min_length=3, max_length=80, pattern=r"^[A-Za-z0-9][A-Za-z0-9 ._-]*$")
+    assetType: AssetType | None = None
+    environment: str | None = Field(default=None, min_length=2, max_length=50, pattern=r"^[A-Za-z0-9][A-Za-z0-9 ._-]*$")
+    owner: str | None = Field(default=None, min_length=2, max_length=60, pattern=r"^[A-Za-z0-9][A-Za-z0-9 ._-]*$")
+    criticality: AssetCriticality | None = None
+    lifecycle: AssetLifecycle | None = None
+
+
+class AssetIncidentLink(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expectedVersion: int = Field(ge=1)
+    incidentId: str = Field(min_length=4, max_length=60, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+class AssetVersion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expectedVersion: int = Field(ge=1)
+
+
+def asset_json(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"], "tenantId": row["tenant_id"],
+        "displayName": row["display_name"], "assetType": row["asset_type"],
+        "environment": row["environment"], "owner": row["owner"],
+        "criticality": row["criticality"], "lifecycle": row["lifecycle"],
+        "version": row["version"],
+        "createdAt": row["created_at"], "updatedAt": row["updated_at"],
+        "monitoringState": "not_connected",
+        "lastSeen": None,
+    }
 
 
 IncidentStatus = Literal["triage", "investigating", "contained", "closed"]

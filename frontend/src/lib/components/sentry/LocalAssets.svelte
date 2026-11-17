@@ -386,6 +386,23 @@
 			</select>
 			<span>ALL ASSET SENSOR STATES: NOT CONNECTED</span>
 		</div>
+			{#if canEdit && createOpen}
+				<div class="create-container">
+					<div class="panel new-asset">
+						<span class="eyebrow">FICTIONAL INVENTORY / ANALYST INPUT</span><h3>Register a training asset</h3>
+						<div class="edit-grid">
+								<label>Name<input bind:value={newName} maxlength="80" placeholder="TRAINING-WIN-42"/></label>
+								<label>Type<select bind:value={newType}>{#each types as type}<option value={type}>{type}</option>{/each}</select></label>
+								<label>Environment<input bind:value={newEnvironment} maxlength="50"/></label>
+								<label>Owner<input bind:value={newOwner} maxlength="60"/></label>
+								<label>Criticality<select bind:value={newCriticality}>{#each criticalities as risk}<option value={risk}>{risk}</option>{/each}</select></label>
+								<label>Lifecycle<select bind:value={newLifecycle}>{#each lifecycles as state}<option value={state}>{state}</option>{/each}</select></label>
+							</div>
+							<button type="button" class="primary" disabled={busy || newName.trim().length < 3} on:click={createAsset}>{busy ? 'Saving...' : 'Register fictional asset'}</button>
+							<p class="minor">Use fictional names only. This creates an inventory record, not an agent or monitor.</p>
+						</div>
+				</div>
+			{/if}
 		{#if fetching}
 			<div class="empty">Loading tenant-owned asset records...</div>
 		{:else}
@@ -461,23 +478,7 @@
 				</section>
 			</div>
 
-			{#if canEdit && createOpen}
-				<div class="create-container">
-					<div class="panel new-asset">
-						<span class="eyebrow">FICTIONAL INVENTORY / ANALYST INPUT</span><h3>Register a training asset</h3>
-						<div class="edit-grid">
-								<label>Name<input bind:value={newName} maxlength="80" placeholder="TRAINING-WIN-42"/></label>
-								<label>Type<select bind:value={newType}>{#each types as type}<option value={type}>{type}</option>{/each}</select></label>
-								<label>Environment<input bind:value={newEnvironment} maxlength="50"/></label>
-								<label>Owner<input bind:value={newOwner} maxlength="60"/></label>
-								<label>Criticality<select bind:value={newCriticality}>{#each criticalities as risk}<option value={risk}>{risk}</option>{/each}</select></label>
-								<label>Lifecycle<select bind:value={newLifecycle}>{#each lifecycles as state}<option value={state}>{state}</option>{/each}</select></label>
-							</div>
-							<button type="button" class="primary" disabled={busy || newName.trim().length < 3} on:click={createAsset}>{busy ? 'Saving...' : 'Register fictional asset'}</button>
-							<p class="minor">Use fictional names only. This creates an inventory record, not an agent or monitor.</p>
-						</div>
-				</div>
-			{/if}
+
 		{/if}
 	{/if}
 	{#if message}<p class="feedback" role="status">{message}</p>{/if}

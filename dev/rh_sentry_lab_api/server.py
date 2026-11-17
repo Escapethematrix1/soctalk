@@ -530,6 +530,14 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
                 "SELECT status,COUNT(*) AS n FROM incidents WHERE tenant_id=? "
                 "GROUP BY status ORDER BY status", (tenant_id,),
             ).fetchall()
+            inventory_counts = db.execute(
+                "SELECT COUNT(*) AS total, "
+                "SUM(CASE WHEN lifecycle='active' THEN 1 ELSE 0 END) AS active, "
+                "SUM(CASE WHEN lifecycle='maintenance' THEN 1 ELSE 0 END) AS maintenance, "
+                "SUM(CASE WHEN lifecycle='retired' THEN 1 ELSE 0 END) AS retired "
+                "FROM assets WHERE tenant_id=?",
+                (tenant_id,),
+            ).fetchone()
             recent = db.execute(
                 "SELECT id,tenant_id,title,severity,status,version,assigned_to "
                 "FROM incidents WHERE tenant_id=? ORDER BY id DESC LIMIT 5",
@@ -562,6 +570,13 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
                 "high": aggregate["high"] or 0,
                 "assigned": aggregate["assigned"] or 0,
                 "byStatus": {row["status"]: row["n"] for row in states},
+            },
+            "assetSummary": {
+                "registered": inventory_counts["total"],
+                "active": inventory_counts["active"] or 0,
+                "maintenance": inventory_counts["maintenance"] or 0,
+                "retired": inventory_counts["retired"] or 0,
+                "connected": 0,
             },
             "syntheticEventCount": event_count,
             "syntheticCorrelationCount": correlation_count,

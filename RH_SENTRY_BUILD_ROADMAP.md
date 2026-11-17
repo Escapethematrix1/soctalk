@@ -13,7 +13,7 @@ Each gate requires reviewable UI, documented API/database contracts, automated u
 |---|---|---|---|
 | 0. Isolated prototype | Visual design, fictional tenants, initial sessions, incident status/assignment/notes and SQLite persistence | Demonstrated locally | Preserve as a regression baseline; keep source under controlled development branch |
 | 1. Command Centre | Actual persisted fictional case counts, recent incidents, zero-live coverage/health messaging, tenant-selected dashboard | **Local SQLite mode implemented** | Browser acceptance, verified session expiry and no cross-tenant reads |
-| 2. Asset inventory | Stored customer-owned assets, ownership, lifecycle, sensor status, software and risk evidence | Not implemented | CRUD, import validation, cross-tenant tests, honest sensor-health and asset provenance |
+| 2. Asset inventory | Stored tenant-owned assets, ownership, lifecycle, investigation links and explicit sensor status | **Local SQLite prototype implemented; browser acceptance pending; software/risk evidence not implemented** | CRUD, import validation, cross-tenant tests, honest sensor-health and asset provenance |
 | 3. Detection engineering | Versioned, approved rule catalogue, event schema, test fixture runner, correlation results, false-positive handling | Static rule demonstration + synthetic test pipeline | Rule validation, deterministic tests, audit/rollback, case linkage with no unapproved execution |
 | 4. Trusted telemetry contract | Immutable source provenance, authenticated service/tenant mapping, deduplication, ingest batching, retry queues, retention | *Offline fictional parsers only* | Synthetic event collector and back-pressure exercised in isolated integration tests; **no VM yet** |
 | 5. Incident/evidence operations | Case intake, state machine, severity, assignment, notes, case/evidence chain-of-custody, search, escalations | Basic SQLite local lab works | Persistent approvals, tenant-safe evidence, concurrent writes, governance and audit tests |
@@ -53,3 +53,11 @@ The first Command Centre local view is backed by \`GET /api/tenants/{tenantId}/l
 ## When to involve the VM
 
 Only after software gates 1–9 are accepted should \`RH_SENTRY_WAZUH_LAB_PLAN.md\` be executed. The VM exists to validate a built integration, *not* to compensate for missing core SOC services.
+
+### Gate 2 progress: persistent asset inventory
+
+The Assets section now supports Simulation and Local API / SQLite modes. The backend stores tenant-owned fictional systems with type, environment, owner, criticality, lifecycle, record version, incident associations and a change journal. Analysts can create and edit records or link/unlink incidents, while customer viewers can only read. Tenant-scoped endpoints, composite foreign keys, CSRF and stale-version checks protect the local lab.
+
+Every asset reports monitoringState=not_connected, lastSeen=null and zero connected sensors. **Registration is not monitoring or security coverage.** The Command Centre reports registered assets separately from actual live sensors, which remain zero.
+
+Python backend tests and Svelte frontend checks passed in GitHub Actions. Browser acceptance is still needed; software bill of materials, vulnerability exposure and authentic agent attestation remain future work.

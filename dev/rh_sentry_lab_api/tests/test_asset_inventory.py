@@ -43,7 +43,7 @@ def create(client, csrf, tenant="alderwick", **overrides):
 
 def update(client, csrf, tenant="alderwick", asset="AST-ALD-001", **changes):
     return client.patch(asset_path(tenant, asset),
-                        headers={"X-CSRF-Token": csrf}, json=changes)
+                        headers={"X-CSRF-Token": csrf} if csrf is not None else {}, json=changes)
 
 
 def test_default_assets_are_fictional_not_connected_and_customer_scoped(lab):
@@ -72,7 +72,7 @@ def test_viewer_cannot_create_update_link_unlink_or_read_history(lab):
     link_url = asset_path() + "/incidents"
     assert client.post(link_url, headers={"X-CSRF-Token": csrf},
         json={"expectedVersion": 1, "incidentId": "SEN-2048"}).status_code == 403
-    assert client.delete(link_url + "/SEN-2047", headers={"X-CSRF-Token": csrf},
+    assert client.request("DELETE", link_url + "/SEN-2047", headers={"X-CSRF-Token": csrf},
         json={"expectedVersion": 1}).status_code == 403
     assert client.get(asset_path() + "/history").status_code == 403
     allowed = client.get(asset_path() + "/incidents")
@@ -140,9 +140,9 @@ def test_incident_links_are_versioned_and_reversible(lab):
     assert linked[0]["id"] == "SEN-2048"
     assert client.post(url, headers={"X-CSRF-Token": csrf},
         json={"expectedVersion": 2, "incidentId": "SEN-2048"}).status_code == 409
-    assert client.delete(url + "/SEN-2048", headers={"X-CSRF-Token": csrf},
+    assert client.request("DELETE", url + "/SEN-2048", headers={"X-CSRF-Token": csrf},
         json={"expectedVersion": 1}).status_code == 409
-    removed = client.delete(url + "/SEN-2048", headers={"X-CSRF-Token": csrf},
+    removed = client.request("DELETE", url + "/SEN-2048", headers={"X-CSRF-Token": csrf},
                             json={"expectedVersion": 2})
     assert removed.status_code == 200, removed.text
     assert removed.json()["version"] == 3
@@ -159,7 +159,7 @@ def test_csrf_and_origin_are_mandatory_for_all_asset_writes(lab):
     assert client.post("/api/tenants/alderwick/assets", json={
         "displayName": "LAB-TEST", "assetType": "server", "environment": "testing"}).status_code == 403
     assert update(client, None, expectedVersion=1, criticality="low").status_code == 403
-    assert client.delete(asset_path() + "/incidents/SEN-2047",
+    assert client.request("DELETE", asset_path() + "/incidents/SEN-2047",
                          json={"expectedVersion": 1}).status_code == 403
     foreign = client.patch(asset_path(), headers={
         "X-CSRF-Token": csrf, "Origin": "https://untrusted.invalid"},
@@ -201,7 +201,7 @@ def test_duplicate_names_and_stale_writes_fail(lab):
     assert create(client, csrf, displayName="WIN-DEMO-07").status_code == 409
     assert create(client, csrf, displayName="win-demo-07").status_code == 409
     assert update(client, csrf, expectedVersion=2, criticality="critical").status_code == 409
-    assert update(client, csrf, expectedVersion=1, criticality="medium").status_code == 422
+    assert update(client, csrf, expectedVersion=1, criticality="high").status_code == 422
     assert update(client, csrf, expectedVersion=1, criticality="high",
                   monitoringState="connected").status_code == 422
     assert client.get(asset_path()).json()["version"] == 1

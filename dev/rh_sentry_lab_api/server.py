@@ -178,6 +178,9 @@ def init_database(db_path: Path):
         );
         CREATE INDEX IF NOT EXISTS synthetic_correlations_tenant_idx ON synthetic_correlations(tenant_id,id DESC);
 
+        CREATE TABLE IF NOT EXISTS lab_seed_flags (
+          key TEXT PRIMARY KEY, applied_at TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS assets (
           id TEXT NOT NULL,
           tenant_id TEXT NOT NULL REFERENCES tenants(id),
@@ -242,12 +245,21 @@ def init_database(db_path: Path):
             " VALUES (?,?,?,?,?,?,?,?,?,?)",
             (tuple(item) + (seed_time, seed_time) for item in ASSET_SEEDS),
         )
-        db.executemany(
-            "INSERT OR IGNORE INTO asset_incident_links "
-            "(tenant_id,asset_id,incident_id,created_by,created_at) VALUES (?,?,?,?,?)",
-            ((tenant, asset, incident, "system-fixture", seed_time)
-             for tenant, asset, incident in ASSET_INCIDENT_SEEDS),
-        )
+        # Seed the example relationships only once: a deliberate unlink must
+        # stay removed when the local API restarts.
+        if db.execute(
+            "SELECT 1 FROM lab_seed_flags WHERE key='asset_incident_links_v1'"
+        ).fetchone() is None:
+            db.executemany(
+                "INSERT OR IGNORE INTO asset_incident_links "
+                "(tenant_id,asset_id,incident_id,created_by,created_at) VALUES (?,?,?,?,?)",
+                ((tenant, asset, incident, "system-fixture", seed_time)
+                 for tenant, asset, incident in ASSET_INCIDENT_SEEDS),
+            )
+            db.execute(
+                "INSERT INTO lab_seed_flags(key,applied_at) VALUES (?,?)",
+                ("asset_incident_links_v1", seed_time),
+            )
 
 
 

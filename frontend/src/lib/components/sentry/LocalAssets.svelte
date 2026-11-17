@@ -477,7 +477,6 @@
 							<p class="minor">Use fictional names only. This creates an inventory record, not an agent or monitor.</p>
 						</div>
 				</div>
-			</div>
 			{/if}
 		{/if}
 	{/if}

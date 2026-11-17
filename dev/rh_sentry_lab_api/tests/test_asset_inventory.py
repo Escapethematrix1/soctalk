@@ -128,7 +128,7 @@ def test_cross_tenant_operations_are_denied_and_restricted_links(lab):
 
 
 def test_incident_links_are_versioned_and_reversible(lab):
-    client, _ = lab
+    client, db_path = lab
     csrf = login(client, "alderwick-analyst")
     url = asset_path(asset="AST-ALD-003") + "/incidents"
     entry = client.post(url, headers={"X-CSRF-Token": csrf},
@@ -149,6 +149,10 @@ def test_incident_links_are_versioned_and_reversible(lab):
     assert client.get(url).json()["items"] == []
     history = client.get(asset_path(asset="AST-ALD-003") + "/history").json()["items"]
     assert [x["action"] for x in history[:2]] == ["incident_unlinked", "incident_linked"]
+    with TestClient(create_app(db_path, PASSWORD)) as reopened:
+        login(reopened, "alderwick-analyst")
+        assert reopened.get(url).json()["items"] == []
+        assert reopened.get(asset_path(asset="AST-ALD-003")).json()["version"] == 3
 
 
 def test_csrf_and_origin_are_mandatory_for_all_asset_writes(lab):
@@ -225,3 +229,21 @@ def test_overview_maintains_zero_live_coverage_after_asset_registration(lab):
     overview = client.get("/api/tenants/alderwick/lab/overview").json()
     assert overview["liveSensors"] == 0
     assert overview["liveCoveragePercent"] == 0
+    assert overview["assetSummary"]["registered"] == 5
+    assert overview["assetSummary"]["active"] == 4
+    assert overview["assetSummary"]["connected"] == 0
+
+
+def test_unlinking_seeded_relation_stays_removed_after_restart(lab):
+    client, path = lab
+    csrf = login(client, "alderwick-analyst")
+    linked_path = asset_path(asset="AST-ALD-001") + "/incidents"
+    assert len(client.get(linked_path).json()["items"]) == 1
+    unlinked = client.request("DELETE", linked_path + "/SEN-2047",
+                              headers={"X-CSRF-Token": csrf},
+                              json={"expectedVersion": 1})
+    assert unlinked.status_code == 200, unlinked.text
+    with TestClient(create_app(path, PASSWORD)) as reopened:
+        login(reopened, "alderwick-analyst")
+        assert reopened.get(linked_path).json()["items"] == []
+        assert reopened.get(asset_path(asset="AST-ALD-001")).json()["version"] == 2

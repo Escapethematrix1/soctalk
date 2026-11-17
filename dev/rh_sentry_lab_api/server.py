@@ -356,7 +356,7 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
     init_database(db_path)
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(CORSMiddleware, allow_origins=list(ALLOWED_ORIGINS),
-                       allow_credentials=True, allow_methods=["GET", "POST", "PATCH"],
+                       allow_credentials=True, allow_methods=["GET", "POST", "PATCH", "DELETE"],
                        allow_headers=["Content-Type", "X-CSRF-Token"])
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"])
     expected_password_hash = digest(lab_password)
@@ -567,6 +567,277 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
             "syntheticCorrelationCount": correlation_count,
             "recentIncidents": [incident_json(row) for row in recent],
         }
+
+    # Persistent fictional asset inventory. Registration is NEVER interpreted as
+    # agent enrolment, monitoring coverage or source attestation. Every read and
+    # mutation is scoped by server-authenticated tenant membership.
+
+    @app.get("/api/tenants/{tenant_id}/assets")
+    def list_assets(tenant_id: str, actor: str = Depends(current_actor)):
+        scoped(actor, tenant_id, "assets:list")
+        with connect(db_path) as db:
+            rows = db.execute(
+                "SELECT * FROM assets WHERE tenant_id=? ORDER BY display_name,id",
+                (tenant_id,),
+            ).fetchall()
+        audit(actor, tenant_id, "assets:list", "allowed")
+        return {"tenantId": tenant_id, "items": [asset_json(row) for row in rows],
+                "liveSensors": 0, "source": "local-sqlite-fictional"}
+
+    @app.get("/api/tenants/{tenant_id}/assets/{asset_id}")
+    def get_asset(tenant_id: str, asset_id: str,
+                  actor: str = Depends(current_actor)):
+        scoped(actor, tenant_id, "assets:read")
+        with connect(db_path) as db:
+            row = db.execute(
+                "SELECT * FROM assets WHERE tenant_id=? AND id=?", (tenant_id, asset_id),
+            ).fetchone()
+        if row is None:
+            raise HTTPException(404, "Not found.")
+        audit(actor, tenant_id, "assets:read", "allowed", asset_id)
+        return asset_json(row)
+
+    @app.post("/api/tenants/{tenant_id}/assets", status_code=201)
+    def create_asset(tenant_id: str, body: CreateAsset, actor: str = Depends(csrf_actor)):
+        analyst_scope(actor, tenant_id, "assets:create")
+        now = datetime.now(timezone.utc).isoformat()
+        with connect(db_path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            if db.execute(
+                "SELECT COUNT(*) FROM assets WHERE tenant_id=?", (tenant_id,),
+            ).fetchone()[0] >= 200:
+                raise HTTPException(429, "Fictional tenant asset limit reached.")
+            conflict = db.execute(
+                "SELECT 1 FROM assets WHERE tenant_id=? AND display_name=? COLLATE NOCASE",
+                (tenant_id, body.displayName),
+            ).fetchone()
+            if conflict:
+                raise HTTPException(409, "An asset with this display name already exists.")
+            asset_id = "AST-" + secrets.token_hex(6).upper()
+            db.execute(
+                "INSERT INTO assets"
+                "(id,tenant_id,display_name,asset_type,environment,owner,"
+                "criticality,lifecycle,created_at,updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (asset_id, tenant_id, body.displayName, body.assetType,
+                 body.environment, body.owner, body.criticality, body.lifecycle,
+                 now, now),
+            )
+            db.execute(
+                "INSERT INTO asset_history(tenant_id,asset_id,actor,action,detail,version,occurred_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (tenant_id, asset_id, actor, "asset_created", "Fictional asset registered", 1, now),
+            )
+            db.execute(
+                "INSERT INTO audit_events(actor,tenant_id,operation,outcome,target,occurred_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (actor, tenant_id, "assets:create", "allowed", asset_id, now),
+            )
+            row = db.execute(
+                "SELECT * FROM assets WHERE tenant_id=? AND id=?", (tenant_id, asset_id),
+            ).fetchone()
+            return asset_json(row)
+
+    @app.patch("/api/tenants/{tenant_id}/assets/{asset_id}")
+    def update_asset(tenant_id: str, asset_id: str, body: UpdateAsset,
+                     actor: str = Depends(csrf_actor)):
+        analyst_scope(actor, tenant_id, "assets:update")
+        columns = {
+            "displayName": "display_name", "assetType": "asset_type",
+            "environment": "environment", "owner": "owner",
+            "criticality": "criticality", "lifecycle": "lifecycle",
+        }
+        supplied = body.model_fields_set & columns.keys()
+        if not supplied:
+            raise HTTPException(422, "No asset changes submitted.")
+        for key in supplied:
+            if key != "owner" and getattr(body, key) is None:
+                raise HTTPException(422, "Required asset fields cannot be cleared.")
+        with connect(db_path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            current = db.execute(
+                "SELECT * FROM assets WHERE tenant_id=? AND id=?",
+                (tenant_id, asset_id),
+            ).fetchone()
+            if current is None:
+                raise HTTPException(404, "Not found.")
+            if current["version"] != body.expectedVersion:
+                raise HTTPException(409, "Asset changed. Refresh before saving.")
+            changes = {
+                columns[key]: getattr(body, key) for key in supplied
+                if current[columns[key]] != getattr(body, key)
+            }
+            if not changes:
+                raise HTTPException(422, "No asset changes submitted.")
+            if "display_name" in changes:
+                conflict = db.execute(
+                    "SELECT 1 FROM assets WHERE tenant_id=? AND display_name=? COLLATE NOCASE AND id!=?",
+                    (tenant_id, changes["display_name"], asset_id),
+                ).fetchone()
+                if conflict:
+                    raise HTTPException(409, "An asset with this display name already exists.")
+            now = datetime.now(timezone.utc).isoformat()
+            assignments = ", ".join(f"{key}=?" for key in sorted(changes))
+            values = [changes[key] for key in sorted(changes)]
+            values += [now, tenant_id, asset_id, body.expectedVersion]
+            result = db.execute(
+                f"UPDATE assets SET {assignments}, updated_at=?, version=version+1 "
+                "WHERE tenant_id=? AND id=? AND version=?",
+                values,
+            )
+            if result.rowcount != 1:
+                raise HTTPException(409, "Asset changed. Refresh before saving.")
+            new_version = body.expectedVersion + 1
+            detail = "Changed fields: " + ", ".join(sorted(changes))
+            db.execute(
+                "INSERT INTO asset_history(tenant_id,asset_id,actor,action,detail,version,occurred_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (tenant_id, asset_id, actor, "asset_updated", detail, new_version, now),
+            )
+            db.execute(
+                "INSERT INTO audit_events(actor,tenant_id,operation,outcome,target,occurred_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (actor, tenant_id, "assets:update", "allowed", asset_id, now),
+            )
+            row = db.execute(
+                "SELECT * FROM assets WHERE tenant_id=? AND id=?", (tenant_id, asset_id),
+            ).fetchone()
+            return asset_json(row)
+
+    @app.get("/api/tenants/{tenant_id}/assets/{asset_id}/incidents")
+    def asset_incidents(tenant_id: str, asset_id: str,
+                        actor: str = Depends(current_actor)):
+        scoped(actor, tenant_id, "assets:incidents:list")
+        with connect(db_path) as db:
+            found = db.execute(
+                "SELECT 1 FROM assets WHERE tenant_id=? AND id=?",
+                (tenant_id, asset_id),
+            ).fetchone()
+            if not found:
+                raise HTTPException(404, "Not found.")
+            rows = db.execute(
+                "SELECT i.id,i.tenant_id,i.title,i.severity,i.status,i.version,i.assigned_to "
+                "FROM asset_incident_links l JOIN incidents i "
+                "ON i.id=l.incident_id AND i.tenant_id=l.tenant_id "
+                "WHERE l.tenant_id=? AND l.asset_id=? ORDER BY i.id DESC",
+                (tenant_id, asset_id),
+            ).fetchall()
+        audit(actor, tenant_id, "assets:incidents:list", "allowed", asset_id)
+        return {"tenantId": tenant_id, "assetId": asset_id,
+                "items": [incident_json(row) for row in rows]}
+
+    @app.post("/api/tenants/{tenant_id}/assets/{asset_id}/incidents", status_code=201)
+    def link_asset_incident(tenant_id: str, asset_id: str, body: AssetIncidentLink,
+                            actor: str = Depends(csrf_actor)):
+        analyst_scope(actor, tenant_id, "assets:incident:link")
+        with connect(db_path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            asset = db.execute(
+                "SELECT version FROM assets WHERE tenant_id=? AND id=?",
+                (tenant_id, asset_id),
+            ).fetchone()
+            if asset is None:
+                raise HTTPException(404, "Not found.")
+            if asset["version"] != body.expectedVersion:
+                raise HTTPException(409, "Asset changed. Refresh before linking.")
+            incident = db.execute(
+                "SELECT 1 FROM incidents WHERE tenant_id=? AND id=?",
+                (tenant_id, body.incidentId),
+            ).fetchone()
+            if incident is None:
+                raise HTTPException(404, "Incident not found in this organisation.")
+            exists = db.execute(
+                "SELECT 1 FROM asset_incident_links WHERE tenant_id=? AND asset_id=? AND incident_id=?",
+                (tenant_id, asset_id, body.incidentId),
+            ).fetchone()
+            if exists:
+                raise HTTPException(409, "Incident already linked to asset.")
+            now = datetime.now(timezone.utc).isoformat()
+            db.execute(
+                "INSERT INTO asset_incident_links(tenant_id,asset_id,incident_id,created_by,created_at) "
+                "VALUES (?,?,?,?,?)",
+                (tenant_id, asset_id, body.incidentId, actor, now),
+            )
+            db.execute(
+                "UPDATE assets SET version=version+1,updated_at=? "
+                "WHERE tenant_id=? AND id=? AND version=?",
+                (now, tenant_id, asset_id, body.expectedVersion),
+            )
+            db.execute(
+                "INSERT INTO asset_history(tenant_id,asset_id,actor,action,detail,version,occurred_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (tenant_id, asset_id, actor, "incident_linked",
+                 "Linked fictional incident " + body.incidentId, body.expectedVersion + 1, now),
+            )
+            db.execute(
+                "INSERT INTO audit_events(actor,tenant_id,operation,outcome,target,occurred_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (actor, tenant_id, "assets:incident:link", "allowed", asset_id, now),
+            )
+            return {"tenantId": tenant_id, "assetId": asset_id,
+                    "incidentId": body.incidentId, "version": body.expectedVersion + 1}
+
+    @app.delete("/api/tenants/{tenant_id}/assets/{asset_id}/incidents/{incident_id}")
+    def unlink_asset_incident(tenant_id: str, asset_id: str, incident_id: str,
+                              body: AssetVersion, actor: str = Depends(csrf_actor)):
+        analyst_scope(actor, tenant_id, "assets:incident:unlink")
+        with connect(db_path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            asset = db.execute(
+                "SELECT version FROM assets WHERE tenant_id=? AND id=?",
+                (tenant_id, asset_id),
+            ).fetchone()
+            if asset is None:
+                raise HTTPException(404, "Not found.")
+            if asset["version"] != body.expectedVersion:
+                raise HTTPException(409, "Asset changed. Refresh before unlinking.")
+            removed = db.execute(
+                "DELETE FROM asset_incident_links WHERE tenant_id=? AND asset_id=? AND incident_id=?",
+                (tenant_id, asset_id, incident_id),
+            )
+            if removed.rowcount != 1:
+                raise HTTPException(404, "Incident link not found.")
+            now = datetime.now(timezone.utc).isoformat()
+            db.execute(
+                "UPDATE assets SET version=version+1,updated_at=? "
+                "WHERE tenant_id=? AND id=? AND version=?",
+                (now, tenant_id, asset_id, body.expectedVersion),
+            )
+            db.execute(
+                "INSERT INTO asset_history(tenant_id,asset_id,actor,action,detail,version,occurred_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (tenant_id, asset_id, actor, "incident_unlinked",
+                 "Unlinked fictional incident " + incident_id, body.expectedVersion + 1, now),
+            )
+            db.execute(
+                "INSERT INTO audit_events(actor,tenant_id,operation,outcome,target,occurred_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (actor, tenant_id, "assets:incident:unlink", "allowed", asset_id, now),
+            )
+            return {"tenantId": tenant_id, "assetId": asset_id,
+                    "incidentId": incident_id, "version": body.expectedVersion + 1}
+
+    @app.get("/api/tenants/{tenant_id}/assets/{asset_id}/history")
+    def asset_change_history(tenant_id: str, asset_id: str,
+                             actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "assets:history:list")
+        with connect(db_path) as db:
+            if not db.execute(
+                "SELECT 1 FROM assets WHERE tenant_id=? AND id=?",
+                (tenant_id, asset_id),
+            ).fetchone():
+                raise HTTPException(404, "Not found.")
+            rows = db.execute(
+                "SELECT id,actor,action,detail,version,occurred_at FROM asset_history "
+                "WHERE tenant_id=? AND asset_id=? ORDER BY id DESC LIMIT 100",
+                (tenant_id, asset_id),
+            ).fetchall()
+        audit(actor, tenant_id, "assets:history:list", "allowed", asset_id)
+        return {"tenantId": tenant_id, "assetId": asset_id, "items": [
+            {"id": row["id"], "actor": row["actor"], "action": row["action"],
+             "detail": row["detail"], "version": row["version"],
+             "occurredAt": row["occurred_at"]} for row in rows
+        ]}
 
     @app.get("/api/tenants/{tenant_id}/incidents")
     def incident_list(tenant_id: str, actor: str = Depends(current_actor)):

@@ -1218,6 +1218,331 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
     # generated server-side from a fixed catalogue; user-provided telemetry,
     # external URLs, arbitrary commands and file uploads are not accepted.
 
+    # Detection Engineering remains strictly synthetic: manual rule evaluation
+    # over already-stored fictional batches, no always-on detector or response.
+
+    @app.get("/api/tenants/{tenant_id}/lab/detection-templates")
+    def detection_templates(tenant_id: str, actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "detections:templates")
+        return {"tenantId": tenant_id, "items": [
+            {"strategy": key, **value} for key, value in RULE_TEMPLATES.items()
+        ], "liveDetection": False}
+
+    @app.get("/api/tenants/{tenant_id}/lab/detection-rules")
+    def detection_rule_list(tenant_id: str, actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "detections:list")
+        with connect(db_path) as db:
+            rows = db.execute(
+                "SELECT * FROM detection_rules WHERE tenant_id=? ORDER BY updated_at DESC,id",
+                (tenant_id,),
+            ).fetchall()
+        audit(actor, tenant_id, "detections:list", "allowed")
+        return {"tenantId": tenant_id, "items": [rule_json(row) for row in rows],
+                "liveDetection": False}
+
+    @app.post("/api/tenants/{tenant_id}/lab/detection-rules", status_code=201)
+    def create_detection_rule(tenant_id: str, body: CreateDetectionRule,
+                              actor: str = Depends(csrf_actor)):
+        analyst_scope(actor, tenant_id, "detections:create")
+        try:
+            validate_threshold(body.strategy, body.threshold)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        now = datetime.now(timezone.utc).isoformat()
+        with connect(db_path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            if db.execute("SELECT COUNT(*) FROM detection_rules WHERE tenant_id=?",
+                          (tenant_id,)).fetchone()[0] >= 30:
+                raise HTTPException(429, "Local synthetic rule limit reached.")
+            rule_id = "DE-" + secrets.token_hex(6).upper()
+            db.execute(
+                "INSERT INTO detection_rules(id,tenant_id,strategy,title,description,"
+                "threshold,status,version,created_by,created_at,updated_at) "
+                "VALUES (?,?,?,?,?,?,?,1,?,?,?)",
+                (rule_id, tenant_id, body.strategy, body.title, body.description,
+                 body.threshold, "draft", actor, now, now),
+            )
+            db.execute(
+                "INSERT INTO detection_rule_history(tenant_id,rule_id,actor,action,detail,version,occurred_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (tenant_id, rule_id, actor, "created", "New synthetic rule draft", 1, now),
+            )
+            db.execute(
+                "INSERT INTO audit_events(actor,tenant_id,operation,outcome,target,occurred_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (actor, tenant_id, "detections:create", "allowed", rule_id, now),
+            )
+            row = db.execute(
+                "SELECT * FROM detection_rules WHERE tenant_id=? AND id=?",
+                (tenant_id, rule_id),
+            ).fetchone()
+        return rule_json(row)
+
+    @app.patch("/api/tenants/{tenant_id}/lab/detection-rules/{rule_id}")
+    def update_detection_rule(tenant_id: str, rule_id: str, body: UpdateDetectionRule,
+                              actor: str = Depends(csrf_actor)):
+        analyst_scope(actor, tenant_id, "detections:update")
+        names = {"title", "description", "threshold", "status"}
+        supplied = body.model_fields_set & names
+        if not supplied:
+            raise HTTPException(422, "No rule changes submitted.")
+        if any(getattr(body, name) is None for name in supplied):
+            raise HTTPException(422, "Rule fields cannot be cleared.")
+        with connect(db_path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing = db.execute(
+                "SELECT * FROM detection_rules WHERE tenant_id=? AND id=?",
+                (tenant_id, rule_id),
+            ).fetchone()
+            if existing is None:
+                raise HTTPException(404, "Not found.")
+            if existing["version"] != body.expectedVersion:
+                raise HTTPException(409, "Rule changed. Refresh before saving.")
+            next_threshold = body.threshold if "threshold" in supplied else existing["threshold"]
+            try:
+                validate_threshold(existing["strategy"], next_threshold)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            changes = {name: getattr(body, name) for name in supplied
+                       if existing[name] != getattr(body, name)}
+            if not changes:
+                raise HTTPException(422, "No effective rule changes.")
+            now = datetime.now(timezone.utc).isoformat()
+            assignments = ", ".join(f"{name}=?" for name in sorted(changes))
+            updated = db.execute(
+                f"UPDATE detection_rules SET {assignments},version=version+1,updated_at=? "
+                "WHERE tenant_id=? AND id=? AND version=?",
+                [changes[name] for name in sorted(changes)] +
+                [now, tenant_id, rule_id, body.expectedVersion],
+            )
+            if updated.rowcount != 1:
+                raise HTTPException(409, "Rule changed. Refresh before saving.")
+            db.execute(
+                "INSERT INTO detection_rule_history(tenant_id,rule_id,actor,action,detail,version,occurred_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (tenant_id, rule_id, actor, "updated",
+                 "Changed: " + ", ".join(sorted(changes)), body.expectedVersion + 1, now),
+            )
+            db.execute(
+                "INSERT INTO audit_events(actor,tenant_id,operation,outcome,target,occurred_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (actor, tenant_id, "detections:update", "allowed", rule_id, now),
+            )
+            row = db.execute(
+                "SELECT * FROM detection_rules WHERE tenant_id=? AND id=?",
+                (tenant_id, rule_id),
+            ).fetchone()
+        return rule_json(row)
+
+    @app.get("/api/tenants/{tenant_id}/lab/detection-rules/{rule_id}/history")
+    def detection_rule_history(tenant_id: str, rule_id: str,
+                               actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "detections:history")
+        with connect(db_path) as db:
+            if db.execute(
+                "SELECT 1 FROM detection_rules WHERE tenant_id=? AND id=?",
+                (tenant_id, rule_id),
+            ).fetchone() is None:
+                raise HTTPException(404, "Not found.")
+            rows = db.execute(
+                "SELECT actor,action,detail,version,occurred_at FROM detection_rule_history "
+                "WHERE tenant_id=? AND rule_id=? ORDER BY id DESC LIMIT 50",
+                (tenant_id, rule_id),
+            ).fetchall()
+        return {"tenantId": tenant_id, "ruleId": rule_id,
+                "items": [dict(row) for row in rows]}
+
+    @app.get("/api/tenants/{tenant_id}/lab/event-batches")
+    def detection_batch_list(tenant_id: str, actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "detections:batches")
+        with connect(db_path) as db:
+            rows = db.execute(
+                "SELECT b.id,b.scenario_id,b.created_at,COUNT(e.id) AS event_count "
+                "FROM synthetic_event_batches b LEFT JOIN synthetic_events e "
+                "ON e.batch_id=b.id AND e.tenant_id=b.tenant_id "
+                "WHERE b.tenant_id=? GROUP BY b.id ORDER BY b.id DESC LIMIT 50",
+                (tenant_id,),
+            ).fetchall()
+        return {"tenantId": tenant_id, "items": [
+            {"id": row["id"], "scenarioId": row["scenario_id"],
+             "createdAt": row["created_at"], "eventCount": row["event_count"]}
+            for row in rows], "liveTelemetry": False}
+
+    @app.post("/api/tenants/{tenant_id}/lab/detection-rules/{rule_id}/test", status_code=201)
+    def test_detection_rule(tenant_id: str, rule_id: str, body: RunDetectionTest,
+                            response: Response, actor: str = Depends(csrf_actor)):
+        analyst_scope(actor, tenant_id, "detections:test")
+        with connect(db_path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            rule = db.execute(
+                "SELECT * FROM detection_rules WHERE tenant_id=? AND id=?",
+                (tenant_id, rule_id),
+            ).fetchone()
+            if rule is None:
+                raise HTTPException(404, "Not found.")
+            # A retry is only permitted if its test inputs and rule version
+            # are identical, even if the rule has since changed.
+            duplicate = db.execute(
+                "SELECT * FROM detection_test_runs "
+                "WHERE tenant_id=? AND rule_id=? AND idempotency_key=?",
+                (tenant_id, rule_id, body.idempotencyKey),
+            ).fetchone()
+            if duplicate is not None:
+                if duplicate["batch_id"] != body.batchId or duplicate["rule_version"] != body.expectedVersion:
+                    raise HTTPException(409, "Idempotency key already used for another test.")
+                response.status_code = 200
+                return {"tenantId": tenant_id, "replayed": True, **detection_run_json(duplicate)}
+            if rule["version"] != body.expectedVersion:
+                raise HTTPException(409, "Rule changed. Refresh before testing.")
+            if rule["status"] == "disabled":
+                raise HTTPException(409, "Disabled rules cannot be evaluated.")
+            batch = db.execute(
+                "SELECT id FROM synthetic_event_batches WHERE tenant_id=? AND id=?",
+                (tenant_id, body.batchId),
+            ).fetchone()
+            if batch is None:
+                raise HTTPException(404, "Synthetic event batch not found in this organisation.")
+            if db.execute(
+                "SELECT COUNT(*) FROM detection_test_runs WHERE tenant_id=?",
+                (tenant_id,),
+            ).fetchone()[0] >= 100:
+                raise HTTPException(429, "Local detection test limit reached.")
+            rows = db.execute(
+                "SELECT id,event_type,occurred_at,source,attributes_json FROM synthetic_events "
+                "WHERE tenant_id=? AND batch_id=? ORDER BY id ASC LIMIT 26",
+                (tenant_id, body.batchId),
+            ).fetchall()
+            if len(rows) > 25 or any(row["source"] not in (
+                "rh-sentry-synthetic-lab", "wazuh-format-synthetic-lab") for row in rows):
+                raise HTTPException(422, "Only bounded fictional event batches can be tested.")
+            events = [
+                {"id": item["id"], "event_type": item["event_type"],
+                 "occurred_at": item["occurred_at"],
+                 "attributes": json.loads(item["attributes_json"])}
+                for item in rows
+            ]
+            try:
+                event_ids = evaluate_detection(rule["strategy"], rule["threshold"], events)
+            except (ValueError, TypeError, KeyError) as exc:
+                raise HTTPException(422, "Invalid fictional event test fixture.") from exc
+            # A finding is recorded for human review only. It is not a case,
+            # notification, alert delivery or automated response.
+            now = datetime.now(timezone.utc).isoformat()
+            cursor = db.execute(
+                "INSERT INTO detection_test_runs "
+                "(tenant_id,rule_id,batch_id,idempotency_key,strategy,threshold,rule_version,"
+                "total_events,matched_ids_json,outcome,tested_by,tested_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (tenant_id, rule_id, body.batchId, body.idempotencyKey, rule["strategy"],
+                 rule["threshold"], rule["version"], len(rows),
+                 json.dumps(event_ids), "matched" if event_ids else "not_matched", actor, now),
+            )
+            run_id = cursor.lastrowid
+            if event_ids:
+                db.execute(
+                    "INSERT INTO detection_findings(tenant_id,run_id) VALUES (?,?)",
+                    (tenant_id, run_id),
+                )
+            db.execute(
+                "INSERT INTO audit_events(actor,tenant_id,operation,outcome,target,occurred_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (actor, tenant_id, "detections:test", "allowed", str(run_id), now),
+            )
+            run = db.execute(
+                "SELECT * FROM detection_test_runs WHERE tenant_id=? AND id=?",
+                (tenant_id, run_id),
+            ).fetchone()
+        return {"tenantId": tenant_id, "replayed": False, **detection_run_json(run)}
+
+    @app.get("/api/tenants/{tenant_id}/lab/detection-runs")
+    def detection_run_list(tenant_id: str, actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "detections:runs")
+        with connect(db_path) as db:
+            rows = db.execute(
+                "SELECT * FROM detection_test_runs WHERE tenant_id=? ORDER BY id DESC LIMIT 100",
+                (tenant_id,),
+            ).fetchall()
+        return {"tenantId": tenant_id, "items": [detection_run_json(row) for row in rows],
+                "liveDetection": False}
+
+    @app.get("/api/tenants/{tenant_id}/lab/detection-findings")
+    def detection_finding_list(tenant_id: str, actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "detections:findings")
+        with connect(db_path) as db:
+            rows = db.execute(
+                "SELECT f.id,f.tenant_id,f.run_id,f.disposition,f.version,f.reviewed_by,f.reviewed_at, "
+                "r.rule_id,r.batch_id,r.rule_version,r.matched_ids_json,r.tested_at "
+                "FROM detection_findings f JOIN detection_test_runs r "
+                "ON r.id=f.run_id AND r.tenant_id=f.tenant_id "
+                "WHERE f.tenant_id=? ORDER BY f.id DESC LIMIT 100",
+                (tenant_id,),
+            ).fetchall()
+        return {"tenantId": tenant_id, "items": [{
+            "id": row["id"], "tenantId": row["tenant_id"],
+            "runId": row["run_id"], "ruleId": row["rule_id"],
+            "batchId": row["batch_id"], "ruleVersion": row["rule_version"],
+            "matchedEventIds": json.loads(row["matched_ids_json"]),
+            "disposition": row["disposition"], "version": row["version"],
+            "reviewedBy": row["reviewed_by"], "reviewedAt": row["reviewed_at"],
+            "testedAt": row["tested_at"], "liveDetection": False,
+        } for row in rows]}
+
+    @app.post("/api/tenants/{tenant_id}/lab/detection-findings/{finding_id}/review")
+    def review_detection_finding(tenant_id: str, finding_id: int,
+                                 body: ReviewDetectionFinding,
+                                 actor: str = Depends(csrf_actor)):
+        analyst_scope(actor, tenant_id, "detections:review")
+        with connect(db_path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            finding = db.execute(
+                "SELECT id,version,disposition FROM detection_findings "
+                "WHERE tenant_id=? AND id=?", (tenant_id, finding_id),
+            ).fetchone()
+            if finding is None:
+                raise HTTPException(404, "Not found.")
+            if finding["version"] != body.expectedVersion:
+                raise HTTPException(409, "Finding changed. Refresh before reviewing.")
+            if finding["disposition"] == body.disposition:
+                raise HTTPException(422, "Finding already has this disposition.")
+            now = datetime.now(timezone.utc).isoformat()
+            db.execute(
+                "UPDATE detection_findings SET disposition=?,version=version+1,"
+                "reviewed_by=?,reviewed_at=? WHERE id=? AND tenant_id=? AND version=?",
+                (body.disposition, actor, now, finding_id, tenant_id, body.expectedVersion),
+            )
+            db.execute(
+                "INSERT INTO detection_finding_reviews(tenant_id,finding_id,actor,"
+                "disposition,reason,version,reviewed_at) VALUES (?,?,?,?,?,?,?)",
+                (tenant_id, finding_id, actor, body.disposition, body.reason,
+                 body.expectedVersion + 1, now),
+            )
+            db.execute(
+                "INSERT INTO audit_events(actor,tenant_id,operation,outcome,target,occurred_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (actor, tenant_id, "detections:review", "allowed", str(finding_id), now),
+            )
+        return {"tenantId": tenant_id, "id": finding_id,
+                "disposition": body.disposition, "version": body.expectedVersion + 1,
+                "reviewedBy": actor, "liveDetection": False}
+
+    @app.get("/api/tenants/{tenant_id}/lab/detection-findings/{finding_id}/reviews")
+    def detection_review_history(tenant_id: str, finding_id: int,
+                                 actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "detections:reviews")
+        with connect(db_path) as db:
+            if db.execute(
+                "SELECT 1 FROM detection_findings WHERE tenant_id=? AND id=?",
+                (tenant_id, finding_id),
+            ).fetchone() is None:
+                raise HTTPException(404, "Not found.")
+            rows = db.execute(
+                "SELECT actor,disposition,reason,version,reviewed_at FROM detection_finding_reviews "
+                "WHERE tenant_id=? AND finding_id=? ORDER BY id DESC LIMIT 50",
+                (tenant_id, finding_id),
+            ).fetchall()
+        return {"tenantId": tenant_id, "findingId": finding_id,
+                "items": [dict(row) for row in rows]}
+
     @app.get("/api/tenants/{tenant_id}/lab/scenarios")
     def list_synthetic_scenarios(tenant_id: str, actor: str = Depends(current_actor)):
         analyst_scope(actor, tenant_id, "synthetic:scenarios")

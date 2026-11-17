@@ -7,6 +7,7 @@
 	import ApiLab from '$lib/components/sentry/ApiLab.svelte';
 	import LocalCaseWorkspace from '$lib/components/sentry/LocalCaseWorkspace.svelte';
 	import LocalCommandCentre from '$lib/components/sentry/LocalCommandCentre.svelte';
+	import LocalAssets from '$lib/components/sentry/LocalAssets.svelte';
 	import SyntheticEventPipeline from '$lib/components/sentry/SyntheticEventPipeline.svelte';
 	import type { DemoIncident as Incident, Severity, IncidentStatus as Status } from '$lib/sentry-demo/types';
 	// RH Sentry product-design sandbox. Core modules use simulated data.
@@ -262,7 +263,7 @@
 				<div class="breadcrumbs">PLATFORM <span>/</span> <strong>{view === 'Overview' ? 'COMMAND CENTRE' : view.toUpperCase()}</strong></div>
 			</div>
 			<div class="topbar-actions">
-				<div class="signal-tag"><span class="status-dot amber"></span> DATA SOURCE: {((view === 'Overview' || view === 'Incidents' || view === 'AI Analyst') && incidentDataMode === 'local') || view === 'Event Pipeline' ? 'LOCAL SQLITE LAB · SYNTHETIC' : 'SIMULATED'}</div>
+				<div class="signal-tag"><span class="status-dot amber"></span> DATA SOURCE: {((view === 'Overview' || view === 'Incidents' || view === 'AI Analyst' || view === 'Assets') && incidentDataMode === 'local') || view === 'Event Pipeline' ? 'LOCAL SQLITE LAB · SYNTHETIC' : 'SIMULATED'}</div>
 				<div class="avatar" aria-label="Demonstration operator">RH</div>
 			</div>
 		</header>
@@ -280,11 +281,11 @@
 				</div>
 			</div>
 
-			{#if view === 'Overview' || view === 'Incidents' || view === 'AI Analyst'}
+			{#if view === 'Overview' || view === 'Incidents' || view === 'AI Analyst' || view === 'Assets'}
 				<div class="data-source-selector" aria-label="Incident data source">
 					<div>
 						<strong>Workspace data source</strong>
-						<p>{incidentDataMode === 'simulated' ? 'Interactive simulated incidents and hypothetical AI findings.' : 'Authenticated fictional case records from your localhost SQLite API. No AI inference is connected.'}</p>
+						<p>{incidentDataMode === 'simulated' ? 'Interactive fictional records and hypothetical monitoring/AI displays.' : 'Authenticated fictional case records from your localhost SQLite API. No AI inference is connected.'}</p>
 					</div>
 					<div class="data-source-buttons">
 						<button type="button" class:chosen={incidentDataMode === 'simulated'} aria-pressed={incidentDataMode === 'simulated'} on:click={() => (incidentDataMode = 'simulated')}>Simulation</button>
@@ -444,8 +445,14 @@
 				<ApiLab sharedSession={labSession} onSessionChange={handleLabSessionChange} />
 			{/if}
 
-			{#if view === 'Assets'}
+			{#if view === 'Assets' && incidentDataMode === 'simulated'}
 				<section class="panel assets-panel"><div class="panel-head"><div><div class="panel-kicker">ENVIRONMENT / DEMONSTRATION</div><h2>Asset inventory</h2></div><span class="mock-badge">6 SAMPLE ASSETS</span></div><div class="assets-grid">{#each assets as asset}<div class="asset-card"><div class="asset-top"><strong>{asset.name}</strong><span class:offline={asset.agent === 'Paused'} class="asset-indicator">{asset.agent}</span></div><div class="asset-type">{asset.type}</div><div class="asset-bottom"><span>{asset.group}</span><span>Example risk: {asset.risk}</span></div></div>{/each}</div><p class="footnote">All assets are fictional. No agents have been installed from this page.</p></section>
+			{/if}
+
+			{#if view === 'Assets' && incidentDataMode === 'local'}
+				<LocalAssets bind:selectedTenantId={localTenantId} csrf={labSession?.csrf ?? ''}
+					labSessionUser={labSession?.user ?? ''} onOpenApiLab={openLocalApiLab}
+					onOpenCase={openPipelineCase}/>
 			{/if}
 
 			{#if view === 'Reports'}

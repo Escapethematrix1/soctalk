@@ -6,6 +6,7 @@
 	import PlatformSecurity from '$lib/components/sentry/PlatformSecurity.svelte';
 	import ApiLab from '$lib/components/sentry/ApiLab.svelte';
 	import LocalCaseWorkspace from '$lib/components/sentry/LocalCaseWorkspace.svelte';
+	import LocalCommandCentre from '$lib/components/sentry/LocalCommandCentre.svelte';
 	import SyntheticEventPipeline from '$lib/components/sentry/SyntheticEventPipeline.svelte';
 	import type { DemoIncident as Incident, Severity, IncidentStatus as Status } from '$lib/sentry-demo/types';
 	// RH Sentry product-design sandbox. Core modules use simulated data.
@@ -261,7 +262,7 @@
 				<div class="breadcrumbs">PLATFORM <span>/</span> <strong>{view === 'Overview' ? 'COMMAND CENTRE' : view.toUpperCase()}</strong></div>
 			</div>
 			<div class="topbar-actions">
-				<div class="signal-tag"><span class="status-dot amber"></span> DATA SOURCE: {(view === 'Incidents' || view === 'AI Analyst') && incidentDataMode === 'local' || view === 'Event Pipeline' ? 'LOCAL SQLITE LAB · SYNTHETIC' : 'SIMULATED'}</div>
+				<div class="signal-tag"><span class="status-dot amber"></span> DATA SOURCE: {((view === 'Overview' || view === 'Incidents' || view === 'AI Analyst') && incidentDataMode === 'local') || view === 'Event Pipeline' ? 'LOCAL SQLITE LAB · SYNTHETIC' : 'SIMULATED'}</div>
 				<div class="avatar" aria-label="Demonstration operator">RH</div>
 			</div>
 		</header>
@@ -279,7 +280,7 @@
 				</div>
 			</div>
 
-			{#if view === 'Incidents' || view === 'AI Analyst'}
+			{#if view === 'Overview' || view === 'Incidents' || view === 'AI Analyst'}
 				<div class="data-source-selector" aria-label="Incident data source">
 					<div>
 						<strong>Workspace data source</strong>
@@ -292,7 +293,7 @@
 				</div>
 			{/if}
 
-			{#if view === 'Overview'}
+			{#if view === 'Overview' && incidentDataMode === 'simulated'}
 				<div class="health-strip">
 					<div class="health-mark"><span class="health-orbit"></span><span class="health-centre"></span></div>
 					<div class="health-copy">
@@ -345,7 +346,12 @@
 				</div>
 			{/if}
 
-			{#if view === 'Overview' || (view === 'Incidents' && incidentDataMode === 'simulated')}
+			{#if view === 'Overview' && incidentDataMode === 'local'}
+				<LocalCommandCentre bind:selectedTenantId={localTenantId} onOpenApiLab={openLocalApiLab}
+					onOpenCase={openPipelineCase} onOpenPipeline={() => selectView('Event Pipeline')}/>
+			{/if}
+
+			{#if (view === 'Overview' || view === 'Incidents') && incidentDataMode === 'simulated'}
 				<div class="section-title-row">
 					<div><div class="eyebrow">TRIAGE AND RESPONSE</div><h2>{view === 'Overview' ? 'Priority investigations' : 'Incident queue'}</h2></div>
 					<span class="section-number">{visibleIncidents.length} DISPLAYED / {incidents.length} TOTAL</span>

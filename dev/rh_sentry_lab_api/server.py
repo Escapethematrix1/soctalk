@@ -372,6 +372,73 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
         audit(actor, None, "tenants:list", "allowed")
         return {"items": [{"id": r["id"], "name": r["name"]} for r in rows]}
 
+    @app.get("/api/tenants/{tenant_id}/lab/overview")
+    def tenant_command_centre(tenant_id: str, actor: str = Depends(current_actor)):
+        """Read persisted synthetic customer metrics, never global demo counts.
+
+        Every database query is tenant-scoped. Analyst-only event and
+        correlation metrics are omitted (null) for customer viewers.
+        No live coverage, risk score or threat protection is asserted.
+        """
+        role = scoped(actor, tenant_id, "overview:read")
+        analyst = role in ("soc_analyst", "soc_lead")
+        with connect(db_path) as db:
+            tenant = db.execute(
+                "SELECT name FROM tenants WHERE id=?", (tenant_id,),
+            ).fetchone()
+            if tenant is None:
+                raise HTTPException(404, "Not found.")
+            aggregate = db.execute(
+                """SELECT COUNT(*) AS total,
+                  SUM(CASE WHEN status != 'closed' THEN 1 ELSE 0 END) AS open,
+                  SUM(CASE WHEN severity = 'critical' AND status != 'closed' THEN 1 ELSE 0 END) AS critical,
+                  SUM(CASE WHEN severity = 'high' AND status != 'closed' THEN 1 ELSE 0 END) AS high,
+                  SUM(CASE WHEN assigned_to IS NOT NULL AND status != 'closed' THEN 1 ELSE 0 END) AS assigned
+                  FROM incidents WHERE tenant_id=?""",
+                (tenant_id,),
+            ).fetchone()
+            states = db.execute(
+                "SELECT status,COUNT(*) AS n FROM incidents WHERE tenant_id=? "
+                "GROUP BY status ORDER BY status", (tenant_id,),
+            ).fetchall()
+            recent = db.execute(
+                "SELECT id,tenant_id,title,severity,status,version,assigned_to "
+                "FROM incidents WHERE tenant_id=? ORDER BY id DESC LIMIT 5",
+                (tenant_id,),
+            ).fetchall()
+            event_count = None
+            correlation_count = None
+            if analyst:
+                event_count = db.execute(
+                    "SELECT COUNT(*) FROM synthetic_events WHERE tenant_id=?",
+                    (tenant_id,),
+                ).fetchone()[0]
+                correlation_count = db.execute(
+                    "SELECT COUNT(*) FROM synthetic_correlations WHERE tenant_id=?",
+                    (tenant_id,),
+                ).fetchone()[0]
+        audit(actor, tenant_id, "overview:read", "allowed")
+        return {
+            "tenantId": tenant_id,
+            "tenantName": tenant["name"],
+            "source": "local-sqlite-fictional",
+            "liveTelemetry": False,
+            "liveSensors": 0,
+            "liveCoveragePercent": 0,
+            "aiAnalysisConnected": False,
+            "incidentSummary": {
+                "total": aggregate["total"],
+                "open": aggregate["open"] or 0,
+                "critical": aggregate["critical"] or 0,
+                "high": aggregate["high"] or 0,
+                "assigned": aggregate["assigned"] or 0,
+                "byStatus": {row["status"]: row["n"] for row in states},
+            },
+            "syntheticEventCount": event_count,
+            "syntheticCorrelationCount": correlation_count,
+            "recentIncidents": [incident_json(row) for row in recent],
+        }
+
     @app.get("/api/tenants/{tenant_id}/incidents")
     def incident_list(tenant_id: str, actor: str = Depends(current_actor)):
         scoped(actor, tenant_id, "incidents:list")

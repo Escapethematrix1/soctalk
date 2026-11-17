@@ -14,7 +14,7 @@ Each gate requires reviewable UI, documented API/database contracts, automated u
 | 0. Isolated prototype | Visual design, fictional tenants, initial sessions, incident status/assignment/notes and SQLite persistence | Demonstrated locally | Preserve as a regression baseline; keep source under controlled development branch |
 | 1. Command Centre | Actual persisted fictional case counts, recent incidents, zero-live coverage/health messaging, tenant-selected dashboard | **Local SQLite mode implemented** | Browser acceptance, verified session expiry and no cross-tenant reads |
 | 2. Asset inventory | Stored tenant-owned assets, ownership, lifecycle, investigation links and explicit sensor status | **Local SQLite prototype implemented; browser acceptance pending; software/risk evidence not implemented** | CRUD, import validation, cross-tenant tests, honest sensor-health and asset provenance |
-| 3. Detection engineering | Versioned, approved rule catalogue, event schema, test fixture runner, correlation results, false-positive handling | Static rule demonstration + synthetic test pipeline | Rule validation, deterministic tests, audit/rollback, case linkage with no unapproved execution |
+| 3. Detection engineering | Versioned, approved rule catalogue, event schema, fixture runner, correlation results, false-positive handling | **Local SQLite rule catalogue, manual batch evaluations and finding review implemented; browser acceptance pending** | Complete lifecycle approval/rollback, verified event quality, performance, and downstream case links without unapproved execution |
 | 4. Trusted telemetry contract | Immutable source provenance, authenticated service/tenant mapping, deduplication, ingest batching, retry queues, retention | *Offline fictional parsers only* | Synthetic event collector and back-pressure exercised in isolated integration tests; **no VM yet** |
 | 5. Incident/evidence operations | Case intake, state machine, severity, assignment, notes, case/evidence chain-of-custody, search, escalations | Basic SQLite local lab works | Persistent approvals, tenant-safe evidence, concurrent writes, governance and audit tests |
 | 6. Analyst/AI reasoning | Evidence retrieval, constrained prompts, model abstraction, explainable findings, uncertainty and human review | Pre-authored AI demo; **no actual model** | Structured evaluation on synthetic investigations, prompt-injection tests, clear provenance, no autonomous action |
@@ -61,3 +61,15 @@ The Assets section now supports Simulation and Local API / SQLite modes. The bac
 Every asset reports monitoringState=not_connected, lastSeen=null and zero connected sensors. **Registration is not monitoring or security coverage.** The Command Centre reports registered assets separately from actual live sensors, which remain zero.
 
 Python backend tests and Svelte frontend checks passed in GitHub Actions. Browser acceptance is still needed; software bill of materials, vulnerability exposure and authentic agent attestation remain future work.
+
+### Gate 3 progress: persisted synthetic Detection Engineering
+
+Detection Engineering now offers explicit Simulation / Local API / SQLite modes. In local mode, fictional SOC analysts can create and version safe rule drafts from exactly three allowlisted strategies, tune bounded thresholds, change test status and inspect an immutable version history. No scripts, search queries or arbitrary user-supplied event data can run.
+
+Rule tests evaluate existing tenant-owned synthetic event batches deterministically. Each persisted test stores a version/threshold snapshot and supporting event IDs. Positive evaluations create fictional **findings for human review**, not incidents, security alerts, notifications, or endpoint actions. Human reviews can mark a finding false positive or needing investigation, with a reason and versioned history. No AI provider or Wazuh service is involved.
+
+All rule internals are SOC-analyst-only and all writes are CSRF protected. Strict server-side tenant checking, composite database foreign keys, idempotency, input validation and audit entries are tested. The rule test repository has a finite 100-test-per-tenant local cap; these controls are laboratory safeguards, not enterprise-scale readiness.
+
+The Assets control to **Register Asset** also moved to the header, and the registration form now opens immediately beneath the authorised tenant selector.
+
+**Still outstanding:** browser acceptance; production IAM and deployment; real source/tenant attestation; detection efficacy testing; rule lifecycle governance; full case management from findings; alerts and notification delivery; reliable telemetry queues; operational human response workflows. Wazuh/VirtualBox remains deferred to the final integration stage.

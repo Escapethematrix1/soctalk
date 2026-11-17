@@ -113,7 +113,7 @@
 	async function fetchDetails() {
 		const serial = ++detailGeneration;
 		const tenant = selectedTenantId;
-		const asset = selected;
+		const asset = assets.find((item) => item.id === selectedAssetId) ?? null;
 		linkedCases = [];
 		history = [];
 		allCases = [];
@@ -186,7 +186,8 @@
 			assets = response.items;
 			selectedAssetId = assets.some((asset) => asset.id === previous) ?
 				previous : assets[0]?.id ?? '';
-			if (selected) resetEditor(selected);
+			const chosen = assets.find((asset) => asset.id === selectedAssetId);
+			if (chosen) resetEditor(chosen);
 			await fetchDetails();
 		} catch (err) {
 			if (destroyed || serial !== requestGeneration) return;
@@ -239,7 +240,7 @@
 
 	function changeTenant() {
 		search = '';
-		role = role; // The current role cannot be assumed for another customer.
+		// Never reuse a previous organisation's role on a tenant switch.
 		// Refresh role from server before allowing a tenant switch.
 		void connectForTenant();
 	}

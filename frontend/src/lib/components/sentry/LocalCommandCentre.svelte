@@ -223,7 +223,7 @@
 				<div class="panel-title"><span class="kicker">RECENT AUTHORISED CASES</span><h3>Investigations</h3></div>
 				<div class="case-list">
 					{#each summary.recentIncidents as incident (incident.id)}
-						<button type="button" on:click={() => onOpenCase(summary!.tenantId, incident.id)}>
+						<button type="button" on:click={() => onOpenCase(selectedTenantId, incident.id)}>
 							<span class="case-severity" class:critical={incident.severity === 'critical'}>{incident.severity}</span>
 							<span class="case-copy"><strong>{incident.title}</strong><small>{incident.id} · {incident.status} · v{incident.version} · {incident.assignedTo ?? 'Unassigned'}</small></span>
 							<span class="case-arrow" aria-hidden="true">›</span>

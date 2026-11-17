@@ -294,6 +294,16 @@ In the existing **Event Pipeline** screen, two new generated, Wazuh-format train
 
 A **real** Wazuh manager, indexer or agent is not connected; integration using genuine test alerts requires a separate trusted collector and VM setup. All platform functionality remains development-only, with zero production monitoring.
 
+## Stage 13 — Wazuh offline replay and VirtualBox readiness
+
+**Implemented:** \`dev/rh_sentry_lab_api/wazuh_replay.py\`, a read-only local validator for intentionally fictional, Wazuh-formatted JSONL records. It enforces strict TEST-NET/fictional hostname constraints, field allowlisting, size/record limits, event-ID uniqueness and a conservative five-minute three-alert SSH correlation. A sample fixture and pytest tests validate its fail-closed behaviour.
+
+**Not implemented:** a Wazuh VM, agent registration, a live collector, live event ingestion, production credential handling, or any RH Sentry real-time SIEM integration. The current Event Pipeline remains synthetic.
+
+**Next external dependency:** follow [RH_SENTRY_WAZUH_LAB_PLAN.md](RH_SENTRY_WAZUH_LAB_PLAN.md) to decide whether the user's 16 GB laptop can safely support an isolated Wazuh VM without Kali running. Do not introduce genuine telemetry before a private repository and trusted-collector controls exist.
+
+Local test command (from \`dev\rh_sentry_lab_api\`): \`.\.venv\Scripts\python.exe wazuh_replay.py --file fixtures/wazuh_training_ssh.jsonl\`. This change adds no frontend controls and requires no Python service restart.
+
 ## Future phases (not implemented yet)
 
 1. Refine the RH Sentry interface and approved brand assets.

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { canonicalSentryPreviewPath } from '$lib/sentry-contracts/preview-url';
 	import AnalystWorkspace from '$lib/components/sentry/AnalystWorkspace.svelte';
 	import CustomerPortfolio from '$lib/components/sentry/CustomerPortfolio.svelte';
 	import ResponseCentre from '$lib/components/sentry/ResponseCentre.svelte';
@@ -209,6 +211,15 @@
 		search = '';
 		view = 'Incidents';
 	}
+	// Keep the local RH Sentry demo address clean if a referrer app appended
+	// attribution parameters. This changes only the URL, not app or session state.
+	onMount(() => {
+		const cleanPath = canonicalSentryPreviewPath(new URL(window.location.href));
+		if (cleanPath !== null) {
+			window.history.replaceState(window.history.state, '', cleanPath);
+		}
+	});
+
 	function resetDemo() {
 		incidentDataMode = 'simulated';
 		incidents = [...seed];

@@ -22,6 +22,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 from event_pipeline import generate_scenario, scenario_catalogue
 from detection_lab import RULE_TEMPLATES, evaluate as evaluate_detection, validate_threshold
+from response_lab import PLAYBOOKS, catalogue as response_catalogue
 
 COOKIE = "rh_sentry_lab_session"
 SESSION_SECONDS = 3600
@@ -295,6 +296,54 @@ def init_database(db_path: Path):
           FOREIGN KEY(finding_id,tenant_id) REFERENCES detection_findings(id,tenant_id)
         );
         CREATE INDEX IF NOT EXISTS detection_reviews_scope ON detection_finding_reviews(tenant_id,finding_id,id DESC);
+
+        CREATE TABLE IF NOT EXISTS response_requests (
+          id TEXT NOT NULL,
+          tenant_id TEXT NOT NULL,
+          incident_id TEXT NOT NULL,
+          playbook_id TEXT NOT NULL CHECK(playbook_id IN
+            ('identity_review','process_review','session_revocation','endpoint_isolation')),
+          rationale TEXT NOT NULL,
+          idempotency_key TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending'
+            CHECK(status IN ('pending','approved_dry_run','rejected')),
+          version INTEGER NOT NULL DEFAULT 1 CHECK(version>=1),
+          requested_by TEXT NOT NULL,
+          requested_at TEXT NOT NULL,
+          reviewed_by TEXT,
+          reviewed_at TEXT,
+          PRIMARY KEY(id,tenant_id),
+          UNIQUE(tenant_id,idempotency_key),
+          FOREIGN KEY(incident_id,tenant_id) REFERENCES incidents(id,tenant_id)
+        );
+        CREATE INDEX IF NOT EXISTS response_queue_scope
+          ON response_requests(tenant_id,requested_at DESC);
+        CREATE TABLE IF NOT EXISTS response_request_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tenant_id TEXT NOT NULL,
+          request_id TEXT NOT NULL,
+          actor TEXT NOT NULL,
+          action TEXT NOT NULL,
+          reason TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          at TEXT NOT NULL,
+          FOREIGN KEY(request_id,tenant_id)
+            REFERENCES response_requests(id,tenant_id)
+        );
+        CREATE INDEX IF NOT EXISTS response_request_history_scope
+          ON response_request_history(tenant_id,request_id,id DESC);
+        CREATE TABLE IF NOT EXISTS response_dry_run_receipts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tenant_id TEXT NOT NULL,
+          request_id TEXT NOT NULL,
+          simulated_by TEXT NOT NULL,
+          simulated_at TEXT NOT NULL,
+          result TEXT NOT NULL,
+          UNIQUE(tenant_id,request_id),
+          FOREIGN KEY(request_id,tenant_id)
+            REFERENCES response_requests(id,tenant_id)
+        );
+
         """)
         # Non-destructive migration for existing local lab DBs. Never reset
         # seeded cases or remove prior demo audit records.
@@ -478,6 +527,42 @@ def detection_run_json(row: sqlite3.Row) -> dict:
         "matchedEventIds": json.loads(row["matched_ids_json"]),
         "testedBy": row["tested_by"], "testedAt": row["tested_at"],
         "liveDetection": False,
+    }
+
+
+
+class ProposeResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    incidentId: str = Field(min_length=4, max_length=60, pattern=r"^[A-Za-z0-9_-]+$")
+    playbookId: Literal[
+        "identity_review", "process_review", "session_revocation", "endpoint_isolation"
+    ]
+    reason: str = Field(min_length=15, max_length=500, pattern=r"^[^\r\n\x00-\x1f]+$")
+    idempotencyKey: str = Field(min_length=12, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+class DecideResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expectedVersion: int = Field(ge=1)
+    decision: Literal["approve_dry_run", "reject"]
+    reason: str = Field(min_length=15, max_length=500, pattern=r"^[^\r\n\x00-\x1f]+$")
+
+
+class SimulateResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expectedVersion: int = Field(ge=1)
+
+
+def response_request_json(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"], "tenantId": row["tenant_id"],
+        "incidentId": row["incident_id"], "playbookId": row["playbook_id"],
+        "playbookName": PLAYBOOKS[row["playbook_id"]]["name"],
+        "reason": row["rationale"], "status": row["status"],
+        "version": row["version"], "requestedBy": row["requested_by"],
+        "requestedAt": row["requested_at"],
+        "reviewedBy": row["reviewed_by"], "reviewedAt": row["reviewed_at"],
+        "liveExecution": False,
     }
 
 

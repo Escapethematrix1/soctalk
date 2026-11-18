@@ -1340,7 +1340,10 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
         with connect(db_path) as db:
             db.execute("BEGIN IMMEDIATE")
             previous = db.execute(
-                "SELECT * FROM response_requests WHERE tenant_id=? AND idempotency_key=?",
+                "SELECT r.*, d.id AS receipt_id FROM response_requests r "
+                "LEFT JOIN response_dry_run_receipts d "
+                "ON d.tenant_id=r.tenant_id AND d.request_id=r.id "
+                "WHERE r.tenant_id=? AND r.idempotency_key=?",
                 (tenant_id, body.idempotencyKey),
             ).fetchone()
             if previous is not None:

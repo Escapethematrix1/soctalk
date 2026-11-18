@@ -123,3 +123,11 @@ export function lookupGuide(query: string): GuideEntry[] {
 		.sort((a,b) => b.score - a.score)
 		.map(({entry}) => entry);
 }
+
+/** Search-box keyboard action: Enter opens an existing ranked destination, never a guessed route. */
+export function resolveGuideDestination(query: string, selectedIndex = 0): SentryView | null {
+	if (!query.trim()) return null;
+	const results = lookupGuide(query).slice(0, 6);
+	if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= results.length) return null;
+	return results[selectedIndex]?.view ?? null;
+}

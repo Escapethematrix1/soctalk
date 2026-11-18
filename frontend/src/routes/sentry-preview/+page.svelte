@@ -151,6 +151,7 @@
 	let incidentDataMode: 'simulated' | 'local' = 'simulated';
 	let localTenantId = '';
 	let localCaseId = '';
+	let responseIncidentId = '';
 	let labSession: { user: string; csrf: string } | null = null;
 	$: visibleIncidents = incidents.filter((incident) => {
 		const matchesSeverity = filter === 'All' || incident.severity === filter;
@@ -162,6 +163,7 @@
 	$: criticalCases = incidents.filter((i) => i.severity === 'Critical').length;
 	$: highCases = incidents.filter((i) => i.severity === 'High').length;
 	function selectView(next: View) {
+		if (next !== 'Response Centre') responseIncidentId = '';
 		view = next;
 		if (getGuide(next).category === 'advanced') advancedOpen = true;
 		menuOpen = false;
@@ -181,11 +183,12 @@
 	function openLocalApiLab() {
 		selectView('API Lab');
 	}
-	function openCompanionLocalWorkspace(tenant: string, caseId: string) {
-		localTenantId = tenant;
+	function openCaseResponse(tenantId: string, caseId: string) {
+		localTenantId = tenantId;
 		localCaseId = caseId;
+		responseIncidentId = caseId;
 		incidentDataMode = 'local';
-		selectView(view === 'Incidents' ? 'AI Analyst' : 'Incidents');
+		selectView('Response Centre');
 	}
 	function openLinkedDetectionIncident(id: string) {
 		incidentDataMode = 'simulated';
@@ -458,13 +461,13 @@
 			{#if view === 'Incidents' && incidentDataMode === 'local'}
 				<LocalCaseWorkspace mode="incidents" bind:selectedTenantId={localTenantId} bind:selectedCaseId={localCaseId}
 					csrf={labSession?.csrf ?? ''} labSessionUser={labSession?.user ?? ''}
-					onOpenApiLab={openLocalApiLab} onSwitchWorkspace={openCompanionLocalWorkspace}/>
+					onOpenApiLab={openLocalApiLab} onOpenResponse={openCaseResponse}/>
 			{/if}
 
 			{#if view === 'AI Analyst' && incidentDataMode === 'local'}
 				<LocalCaseWorkspace mode="analyst" bind:selectedTenantId={localTenantId} bind:selectedCaseId={localCaseId}
 					csrf={labSession?.csrf ?? ''} labSessionUser={labSession?.user ?? ''}
-					onOpenApiLab={openLocalApiLab} onSwitchWorkspace={openCompanionLocalWorkspace}/>
+					onOpenApiLab={openLocalApiLab} onOpenResponse={openCaseResponse}/>
 			{/if}
 
 			{#if view === 'Response Centre' && incidentDataMode === 'simulated'}
@@ -472,6 +475,7 @@
 			{/if}
 			{#if view === 'Response Centre' && incidentDataMode === 'local'}
 				<LocalResponseCentre bind:selectedTenantId={localTenantId}
+					preferredIncidentId={responseIncidentId}
 					csrf={labSession?.csrf ?? ''} labSessionUser={labSession?.user ?? ''}
 					onOpenApiLab={openLocalApiLab} onOpenCase={openPipelineCase}/>
 			{/if}

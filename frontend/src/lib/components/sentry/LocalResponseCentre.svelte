@@ -207,7 +207,9 @@
 			const fromCase = incidents.some((item) => item.id === preferredIncidentId);
 			proposalIncident = fromCase ? preferredIncidentId : (incidents[0]?.id ?? '');
 			proposalPlaybook = playbooks[0]?.id ?? '';
-			if (fromCase && canWrite) showProposalForm = true;
+			// The form itself is gated by canWrite. Open it on a verified case handoff
+			// without depending on the timing of Svelte's reactive role recomputation.
+			if (fromCase) showProposalForm = true;
 			await refreshRequests();
 		} catch (err) {
 			if (disposed || generation !== cycle) return;

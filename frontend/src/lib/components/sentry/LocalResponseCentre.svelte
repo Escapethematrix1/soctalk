@@ -4,6 +4,7 @@
 	import type { LabCase, LabIdentity, LabTenant } from '$lib/sentry-lab/scope';
 
 	export let selectedTenantId: string;
+	export let preferredIncidentId = '';
 	export let csrf: string;
 	export let labSessionUser: string;
 	export let onOpenApiLab: () => void;
@@ -203,8 +204,10 @@
 			}
 			incidents = cases.items;
 			playbooks = templates.items;
-			proposalIncident = incidents[0]?.id ?? '';
+			const fromCase = incidents.some((item) => item.id === preferredIncidentId);
+			proposalIncident = fromCase ? preferredIncidentId : (incidents[0]?.id ?? '');
 			proposalPlaybook = playbooks[0]?.id ?? '';
+			if (fromCase && canWrite) showProposalForm = true;
 			await refreshRequests();
 		} catch (err) {
 			if (disposed || generation !== cycle) return;

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import IncidentCaseLab from '$lib/components/sentry/IncidentCaseLab.svelte';
+	import GuidedIncidentCase from '$lib/components/sentry/GuidedIncidentCase.svelte';
+	import { orderCasesForTriage } from '$lib/sentry-contracts/incident-workflow';
 	import { chooseLabCase, chooseLabTenant, hasLabEditRole, visibleLabTenants } from '$lib/sentry-lab/scope';
 	import type { LabCase, LabTenant, LabMembership, LabIdentity } from '$lib/sentry-lab/scope';
 
@@ -11,7 +12,7 @@
 	export let csrf: string;
 	export let labSessionUser: string;
 	export let onOpenApiLab: () => void;
-	export let onSwitchWorkspace: (tenantId: string, incidentId: string) => void;
+	export let onOpenResponse: (tenantId: string, incidentId: string) => void;
 
 	const API = 'http://127.0.0.1:8001';
 	let identityUser = '';
@@ -32,7 +33,7 @@
 	$: hasAnalystRole = hasLabEditRole(memberships, selectedTenantId);
 	// UI permission is a convenience only; the Python API checks the actor.
 	$: canEdit = hasAnalystRole && Boolean(csrf) && labSessionUser === identityUser;
-	$: results = incidents.filter((item) =>
+	$: results = orderCasesForTriage(incidents).filter((item) =>
 		[item.title, item.id, item.status, item.assignedTo ?? ''].join(' ').toLowerCase()
 			.includes(search.trim().toLowerCase())
 	);
@@ -141,12 +142,6 @@
 		search = '';
 		void loadCases();
 	}
-	function switchWorkspace() {
-		if (selected && selected.tenantId === selectedTenantId) {
-			onSwitchWorkspace(selectedTenantId, selected.id);
-		}
-	}
-
 	onMount(() => { void reload(); });
 	onDestroy(() => {
 		destroyed = true;
@@ -165,16 +160,14 @@
 		<span class="lab-status" class:online>{online ? 'LOCAL API · SYNTHETIC' : 'API NOT CONNECTED'}</span>
 	</div>
 
-	<div class="stats">
-		<div><span>AVAILABLE CUSTOMERS</span><strong>{tenants.length.toString().padStart(2, '0')}</strong><small>Server-issued memberships</small></div>
-		<div><span>SELECTED CUSTOMER CASES</span><strong>{incidents.length.toString().padStart(2, '0')}</strong><small>SQLite records only</small></div>
-		<div><span>NON-CLOSED CASES</span><strong>{openCases.toString().padStart(2, '0')}</strong><small>Fictional incident states</small></div>
-		<div><span>LIVE TELEMETRY</span><strong>00</strong><small>No sensors or AI services</small></div>
+	<div class="queue-summary">
+		<strong>{openCases} active fictional cases</strong>
+		<span>{incidents.length} stored cases · {tenants.length} accessible customer{tenants.length === 1 ? '' : 's'} · 0 live sensors</span>
 	</div>
 
 	<div class="toolbar">
 		<div><span class="eyebrow">RH SENTRY / LOCAL API WORKSPACE</span>
-			<h2>{mode === 'incidents' ? 'Customer-scoped incident queue' : 'Human analyst investigation queue'}</h2>
+			<h2>{mode === 'incidents' ? 'Investigation queue' : 'Analyst casework preview'}</h2>
 			<p>Lab identity: <strong>{identityUser || 'Not signed in'}</strong> · {hasAnalystRole ? 'Analyst membership' : 'Read-only or unauthenticated'}</p></div>
 		<div class="buttons">
 			<button type="button" class="secondary" on:click={() => void reload()} disabled={loading}>Refresh local session ↻</button>
@@ -193,14 +186,14 @@
 	{:else}
 		<div class="queue-layout">
 			<section class="panel queue">
-				<div class="panel-heading"><div><span class="eyebrow">SERVER-DEFINED TENANT</span><h3>Local cases</h3></div><span class="count">{results.length} SHOWN</span></div>
+				<div class="panel-heading"><div><span class="eyebrow">PRIORITISED WORK</span><h3>Investigations</h3></div><span class="count">{results.length} CASES</span></div>
 				<div class="controls">
-					<label for="local-customer">AUTHORISED CUSTOMER</label>
+					<label for="local-customer">CUSTOMER</label>
 					<select id="local-customer" bind:value={selectedTenantId} on:change={changeTenant} disabled={loadingCases}>
 						{#each tenants as tenant (tenant.id)}<option value={tenant.id}>{tenant.name}</option>{/each}
 					</select>
-					<label for="local-case-search">SEARCH RETURNED CASES</label>
-					<input id="local-case-search" type="search" bind:value={search} placeholder="Search incident or analyst..."/>
+					<label for="local-case-search">FIND AN INCIDENT</label>
+					<input id="local-case-search" type="search" bind:value={search} placeholder="Search title, ID or assigned analyst..."/>
 				</div>
 				<div class="queue-rows">
 					{#each results as item (item.id)}
@@ -208,27 +201,24 @@
 							<div class="item-top"><span>{item.id}</span><span class:critical={item.severity === 'critical'}>{item.severity}</span></div>
 							<strong>{item.title}</strong>
 							<div class="item-bottom"><span>{item.status}</span><span>v{item.version}</span></div>
-							<small>{item.assignedTo ? 'Assigned: ' + item.assignedTo : 'Unassigned'}</small>
+							<small>{item.assignedTo ? 'Owner: ' + item.assignedTo : 'Needs owner'}</small>
 						</button>
 					{:else}<p class="empty-row">{loadingCases ? 'Loading cases...' : 'No cases match your search.'}</p>{/each}
 				</div>
-				<div class="queue-foot">PERSISTENT SQLITE RECORDS · NOT SIMULATED AI FINDINGS</div>
+				<div class="queue-foot">ACTIVE CASES FIRST · LOCAL FICTIONAL DATA</div>
 			</section>
 			<section class="panel detail">
 				{#if selected}
-					<div class="detail-top">
-						<div><span class="eyebrow">PERSISTENT LAB CASE</span><h3>{selected.title}</h3><p>{selected.id} · {selectedTenantId} · version {selected.version}</p></div>
-						<button type="button" class="secondary" on:click={switchWorkspace}>{mode === 'incidents' ? 'Open analyst casework ↗' : 'Open incident management ↗'}</button>
-					</div>
 					{#if mode === 'analyst'}
-						<div class="notice"><strong>Human investigation, not AI inference</strong>
-							<p>Stored notes are authored by lab users; the prototype has no SIEM retrieval, model-generated findings or validated threat attribution.</p></div>
+						<div class="notice"><strong>Human investigation only</strong>
+							<p>AI inference is not connected. All notes, decisions and cases are fictional local records.</p></div>
 					{/if}
 					{#if hasAnalystRole && !canEdit}
-						<div class="notice"><strong>Editing requires a fresh lab login</strong>
-							<p>Go to API Lab and sign in again for a session-bound CSRF token held only in this page's memory.</p></div>
+						<div class="notice"><strong>Sign in again to edit</strong>
+							<p>API Lab provides the session-bound token required to save analyst changes.</p></div>
 					{/if}
-					<IncidentCaseLab tenantId={selectedTenantId} incident={selected} {csrf} {canEdit} onSaved={loadCases}/>
+					<GuidedIncidentCase tenantId={selectedTenantId} incident={selected} {csrf} {canEdit}
+						onSaved={loadCases} {onOpenResponse}/>
 				{:else}
 					<div class="empty-state">Select a server-returned incident to view its case record.</div>
 				{/if}
@@ -246,9 +236,8 @@
 	.lab-banner strong { font-size:15px }.lab-banner p { font-size:12px;color:#aeb9c6;line-height:1.7;margin:6px 0 0 }
 	.lab-status { margin-left:auto;flex-shrink:0;font-size:10px;white-space:nowrap;font-weight:800;color:#f1c09d;border:1px solid #866244;border-radius:5px;padding:9px }
 	.lab-status.online { color:#9addbd;border-color:#4e7c69 }
-	.stats { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin-bottom:20px }
-	.stats>div { background:#111924;border:1px solid #2d3949;border-radius:9px;padding:17px;display:flex;flex-direction:column;gap:9px }
-	.stats span { font-size:10px;letter-spacing:.08em;font-weight:750;color:#91a3b8 }.stats strong { font-size:27px }.stats small { font-size:11px;color:#8195aa }
+	.queue-summary {display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 16px;margin-bottom:14px;background:#142133;border:1px solid #2b3e51;border-radius:7px;font-size:11px}
+	.queue-summary strong {color:#e8eff7;font-size:12px}.queue-summary span {color:#94a9bf}
 	.toolbar { display:flex;align-items:center;justify-content:space-between;gap:17px;margin:26px 0 19px }
 	.toolbar h2 { font-size:20px;margin:9px 0 }.toolbar p { font-size:12px;color:#93a7ba;margin:0 }
 	.eyebrow { color:#e16d7e;font-size:10px;font-weight:800;letter-spacing:.11em }
@@ -273,14 +262,14 @@
 	.queue-foot { border-top:1px solid #2a394a;background:#162131;color:#798fa7;font-size:10px;letter-spacing:.06em;padding:15px }
 	.detail-top { display:flex;justify-content:space-between;align-items:center;gap:15px;padding:22px }
 	.detail-top h3 { font-size:18px;margin:9px 0 }.detail-top p { color:#8ca0b5;font-size:11px;margin:0 }
-	.detail> :global(.case-panel) { border-left:0;border-right:0;border-bottom:0;border-radius:0 }
+	.detail> :global(.guided-case) {border:0;border-radius:0}
 	.notice { margin:0 21px 19px;padding:16px 18px;background:#25242d;border-left:3px solid #bd9065;border-radius:5px }
 	.notice strong { font-size:12px;color:#efc29c }.notice p { font-size:12px;line-height:1.7;color:#b5b1bd;margin:8px 0 0 }
 	.empty-state { padding:27px;background:#1b2431;border:1px solid #334254;border-radius:9px;color:#aebccc;font-size:12px;line-height:1.8;margin-bottom:15px }
 	.empty-state strong { font-size:14px;color:#edf3fa }.empty-state p { font-size:12px;color:#a1b2c4;line-height:1.75 }
 	.feedback { color:#9cb0c6;font-size:11px;line-height:1.8;margin:17px 0 }
 	.local-workspace footer { display:flex;justify-content:space-between;gap:13px;padding-top:18px;margin-top:25px;border-top:1px solid #29384a;color:#74899d;font-size:10px;font-weight:800;letter-spacing:.07em }
-	@media(max-width:1170px){.queue-layout { grid-template-columns:1fr }.stats { grid-template-columns:repeat(2,minmax(0,1fr)) }}
+	@media(max-width:1170px){.queue-layout { grid-template-columns:1fr }}
 	@media(max-width:750px){.lab-banner,.toolbar,.detail-top { flex-direction:column;align-items:flex-start }.lab-status { margin-left:0 }.local-workspace footer { flex-direction:column }}
-	@media(max-width:560px){.stats { grid-template-columns:1fr }}
+
 </style>

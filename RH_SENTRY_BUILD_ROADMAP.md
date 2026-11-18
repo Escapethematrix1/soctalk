@@ -16,7 +16,7 @@ Each gate requires reviewable UI, documented API/database contracts, automated u
 | 2. Asset inventory | Stored tenant-owned assets, ownership, lifecycle, investigation links and explicit sensor status | **Local SQLite prototype implemented; browser acceptance pending; software/risk evidence not implemented** | CRUD, import validation, cross-tenant tests, honest sensor-health and asset provenance |
 | 3. Detection engineering | Versioned, approved rule catalogue, event schema, fixture runner, correlation results, false-positive handling | **Local SQLite rule catalogue, manual batch evaluations and finding review implemented; browser acceptance pending** | Complete lifecycle approval/rollback, verified event quality, performance, and downstream case links without unapproved execution |
 | 4. Trusted telemetry contract | Immutable source provenance, authenticated service/tenant mapping, deduplication, ingest batching, retry queues, retention | *Offline fictional parsers only* | Synthetic event collector and back-pressure exercised in isolated integration tests; **no VM yet** |
-| 5. Incident/evidence operations | Case intake, state machine, severity, assignment, notes, case/evidence chain-of-custody, search, escalations | Basic SQLite local lab works | Persistent approvals, tenant-safe evidence, concurrent writes, governance and audit tests |
+| 5. Incident/evidence operations | Case intake, state machine, severity, assignment, notes, case/evidence chain-of-custody, search, escalations | **Guided SQLite case workflow implemented; browser acceptance pending; evidence provenance and escalation incomplete** | Full evidence chain-of-custody, escalations, SLAs, correlation and independent operational acceptance |
 | 6. Analyst/AI reasoning | Evidence retrieval, constrained prompts, model abstraction, explainable findings, uncertainty and human review | Pre-authored AI demo; **no actual model** | Structured evaluation on synthetic investigations, prompt-injection tests, clear provenance, no autonomous action |
 | 7. Response Centre | Playbook registry, proposals, approvals, simulation receipts, explicit separation of duties | **Local SQLite workflow implemented; browser acceptance pending; no real executor** | End-to-end operator acceptance, escalation/rollback planning and production-grade signed approvals before real integration |
 | 8. Reporting/customer portal | Persistent tenant scoped dashboards, executive and technical reports, customer permissions, export redaction | Demo reporting and customer portfolio | Cross-tenant/report export tests; downloadable signed-off reports and data minimisation |
@@ -94,3 +94,21 @@ The Response Centre now has **Simulation / Local API / SQLite** modes. The local
 All request histories and receipts persist in SQLite with authenticated, tenant-scoped queries, CSRF for writes, version checks, auditing, finite lab limits and tested separation of duties. Customer viewers cannot access the response queue. An approval is never equivalent to authorisation for a real system action. This is **local laboratory workflow only**, not a commercial SOC playbook engine.
 
 **Outstanding:** browser acceptance, production IAM, timeout handling, per-customer roles/approval policies, response SLAs, escalation, playbook efficacy tests, richer audit integrity, signed approvals, reconciliation, rollback plans, case evidence handoff and connected response integrations. VirtualBox/Wazuh stays last for final E2E acceptance.
+
+
+### Gate 5 update — evidence-first incident investigation (18 November 2026)
+
+The local Incidents section now opens a simplified **four-stage casework** view:
+
+1. **Understand** — case status, severity, ownership, associated fictional assets, no-monitoring warnings and optional history.
+2. **Evidence** — view and save synthetic analyst observations; never imply the notes are validated telemetry.
+3. **Decide** — assign an analyst and update the case using only one-step server-permitted state transitions; preserve version and CSRF protections.
+4. **Respond** — show tenant-scoped proposal status and open the same case directly in the independent-approval Response Centre.
+
+A single **Recommended next step** depends on the latest persisted incident state, owner, number of analyst notes and pending/approved response plans. This is deterministic UI logic, **not an AI model, autonomous triage or a finding that a case is secure**. Closed cases are not described as verified remediation. The case queue shows open and unassigned investigations first, then severity, with no changes to server-side incident rankings or stored records.
+
+The local API now exposes \`GET /api/tenants/{tenantId}/incidents/{incidentId}/work-context\` for authenticated SOC analysts/leads only. The context joins **the same tenant** across linked inventory assets, incident notes and response proposal receipts, and explicitly returns \`liveTelemetry=false\`, \`aiInference=false\`, \`responseExecution=false\` and \`verifiedTelemetryCount=0\`. Customer viewers cannot access this internal context and see only limited read-only case data. Python tests cover direct-viewer and cross-tenant denial, asset associations, response states and persisted facts after restart.
+
+The core navigation help registry now explains the new incident workflow. Both local **Incidents** and local **AI Analyst** case preview use the guided casework interface; the latter remains expressly human-only pending actual AI integration. The original Simulation screens remain accessible and unchanged.
+
+**Pending:** browser acceptance, canonical event-to-case evidence relationships and quality checks, ownership handoff/SLAs, independent change management, approval orchestration beyond dry-run, case attachments and chain-of-custody, full customer workflow, production IAM and telemetry integration. No VirtualBox/Wazuh or production deployment yet.

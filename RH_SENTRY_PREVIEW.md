@@ -344,6 +344,22 @@ The deterministic rule strategies are intentionally allowlisted: fictional impos
 
 The Assets page's **+ Register Asset** action has been moved to its upper toolbar, with the form placed immediately below the tenant selector. No production deployment or VirtualBox activity occurred.
 
+## Stage 17 — Guided local incident investigations
+
+RH Sentry's local **Incidents** casework now follows a focused workflow: **Understand → Evidence → Decide → Respond**, with only one stage's controls visible at a time. Instead of four permanent metric cards and simultaneous case-edit/evidence/history forms, the operator sees one recommendation based on saved fictional data (not a model) and can move between stages freely.
+
+- **Understand:** selected case metadata, related tenant-owned fictional assets, synthetic-data provenance, optional change history.
+- **Evidence:** saved plain-text analyst notes, explicit distinction between notes and verified security telemetry, analyst-only note submission.
+- **Decide:** server-validated one-step case state transitions, analyst assignment and optimistic concurrency; closed state never implies automatic security verification.
+- **Respond:** response-plan counts and a single action that opens the real local Response Centre **with the exact permitted customer and incident preselected**. Independent lead approval is still mandatory and only a no-op receipt may be recorded.
+
+The backend's new authenticated analyst-only work-context endpoint is \`GET /api/tenants/{tenantId}/incidents/{incidentId}/work-context\`. It never returns customer secrets or cross-tenant data, and explicitly marks the absence of live telemetry, real AI analysis and executable response. Customer viewers see read-only metadata only. The queue now orders open/unassigned work ahead of closed records; it does not mutate server data.
+
+**Local acceptance:** Pull \`dev/rh-one\`. Restart the Python backend (new read endpoint); keep Vite at \`127.0.0.1:5173\`. Sign in through API Lab as fictional \`alderwick-analyst\`, then open **Incidents → Local API / SQLite** and select \`SEN-2047\`. Confirm the highlighted recommendation, four stage tabs, and linked fictional \`WIN-DEMO-07\` asset. Assign an analyst and update the case status, then save an evidence note: after refresh the record version, evidence count and recommended action should reflect the changes. Open the **Respond** stage and follow the case into Response Centre; the correct incident should be preselected in **+ Propose response**. Sign in as a viewer to verify read-only access; switch to **Simulation** to ensure the original demo remains intact.
+
+**Automated verification:** Python endpoint/tenant/history tests and pure TypeScript tests for next-step recommendation, safe transitions and queue ordering. A real browser/user acceptance test is still required. This feature is a local prototype, not real evidence ingestion or AI investigation.
+
+
 ## Future phases (not implemented yet)
 
 1. Refine the RH Sentry interface and approved brand assets.

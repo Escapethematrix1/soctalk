@@ -283,3 +283,27 @@ Automated validation: \`.\.venv\Scripts\python.exe -m pytest -q tests\`. The fro
 ### Future AI Analyst navigation tool
 
 The versioned frontend registry lives at \`frontend/src/lib/sentry-contracts/platform-guide.ts\`. Future AI-enabled navigation must use that reviewed source or a server-issued equivalent, resolve the currently authorised tenant and role, and answer with an actual available destination. The current guide is searchable **deterministic UI help**, not an LLM, and should not be represented to customers as live AI.
+
+
+## Guided Incident Work Context
+
+\`GET /api/tenants/{tenantId}/incidents/{incidentId}/work-context\` is a **read-only, SOC-analyst/lead-only** endpoint for the new focused case workflow. It combines these *stored fictional* facts after validating session and tenant membership:
+
+- The exact case ID and version (used to reject mismatched/stale UI context).
+- Count of human-authored analyst notes, with \`verifiedTelemetryCount=0\` explicitly reported.
+- Tenant-owned assets linked to this incident through composite-tenant SQL joins, all reported as \`monitoringState=not_connected\`.
+- Counts of pending/approved/rejected response proposals and dry-run receipts for this case, **never live actions**.
+- Count of recorded case state changes (historical journal).
+
+Customer viewer accounts receive HTTP 403 and may not access internal note counts, asset associations or response approval details. Requests to a tenant or case outside the session's membership return HTTP 404. The endpoint does not change incident states or start processes, and always reports \`dataSource=local-sqlite-fictional\`, \`liveTelemetry=false\`, \`aiInference=false\`, \`responseExecution=false\`.
+
+### Manual browser checks
+
+1. Pull \`dev/rh-one\` from the source repository and restart the Python lab backend so the work-context route is loaded. Keep the Svelte frontend running.
+2. Open \`http://127.0.0.1:5173/sentry-preview\` and log in through API Lab as fictional \`alderwick-analyst\`.
+3. In **Incidents → Local API / SQLite**, open case \`SEN-2047\`. The initial view should have a single recommended next step and **Understand / Evidence / Decide / Respond** stage tabs, not simultaneous multi-column case management forms.
+4. In **Understand**, inspect the linked fictional device and verify it reads **not monitored**. In **Decide**, assign an analyst or move to the next valid case state. In **Evidence**, save an observation; verify it persists after a refresh and updates the recommended next action.
+5. In **Respond**, open the linked response planning page. The same tenant and case must be preselected in the proposal form, with independent approval still required.
+6. Log in as a fictional viewer. This account may see limited case metadata, but not internal notes, editing or work-context data. The original Simulation mode should remain intact.
+
+Automated tests: \`.\.venv\Scripts\python.exe -m pytest -q tests\` from the backend lab directory. The frontend's \`pnpm check\` and Vitest contract suite validate the guided next-step rules; browser interactions still need a manual check. Real agent data and VirtualBox/Wazuh integration remain deferred until the software is ready for final acceptance.

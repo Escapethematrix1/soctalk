@@ -168,6 +168,9 @@
 	}
 	function handleLabSessionChange(next: { user: string; csrf: string } | null) {
 		labSession = next;
+		// Prefer persisted fictional records after successful local lab login.
+		// Never silently return to simulated figures when a session expires.
+		if (next) incidentDataMode = 'local';
 	}
 	function openPipelineCase(tenantId: string, caseId: string) {
 		localTenantId = tenantId;

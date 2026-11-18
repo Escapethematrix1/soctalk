@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getGuide, lookupGuide } from '$lib/sentry-contracts/platform-guide';
+	import { getGuide, lookupGuide, resolveGuideDestination } from '$lib/sentry-contracts/platform-guide';
 	import type { SentryView } from '$lib/sentry-contracts/platform-guide';
 
 	/** Deterministic in-app navigation, not connected to a model or chatbot. */
@@ -8,6 +8,7 @@
 	let open = false;
 	let query = '';
 	let selectedView: SentryView | null = null;
+	let activeResultIndex = 0;
 
 	$: results = lookupGuide(query).slice(0, 6);
 	$: selected = selectedView ? getGuide(selectedView) : null;
@@ -17,13 +18,37 @@
 		open = false;
 		query = '';
 		selectedView = null;
+		activeResultIndex = 0;
 		onNavigate(destination);
+	}
+	function onSearchChange() {
+		activeResultIndex = 0;
+		selectedView = null;
+	}
+	function onSearchKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			const destination = resolveGuideDestination(query, activeResultIndex);
+			if (destination) navigate(destination);
+		} else if (event.key === 'ArrowDown' && results.length) {
+			event.preventDefault();
+			activeResultIndex = (activeResultIndex + 1) % results.length;
+			selectedView = null;
+		} else if (event.key === 'ArrowUp' && results.length) {
+			event.preventDefault();
+			activeResultIndex = (activeResultIndex - 1 + results.length) % results.length;
+			selectedView = null;
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			open = false;
+		}
 	}
 	function toggleGuide() {
 		open = !open;
 		if (open) {
 			query = '';
 			selectedView = null;
+			activeResultIndex = 0;
 		}
 	}
 </script>
@@ -44,10 +69,14 @@
 			</div>
 			<label for="rh-guide-search">Find a task or page</label>
 			<input id="rh-guide-search" type="search" bind:value={query}
-				placeholder="e.g. register an asset, approve a response" />
+				placeholder="e.g. register an asset, approve a response"
+				on:keydown={onSearchKeydown} on:input={onSearchChange}
+				aria-describedby="rh-guide-keyboard-hint" />
+			<p class="keyboard-hint" id="rh-guide-keyboard-hint">Press Enter to open the top match. Use ↑ / ↓ to choose another result.</p>
 			<div class="guide-list" aria-label="Matching destinations">
-				{#each results as item (item.view)}
-					<button type="button" class:chosen={selectedView === item.view} on:click={() => (selectedView = item.view)}>
+				{#each results as item, index (item.view)}
+					<button type="button" class:chosen={selectedView === item.view} class:keyboard-active={activeResultIndex === index && query.trim().length > 0}
+						on:click={() => { activeResultIndex = index; selectedView = item.view; }}>
 						<span>{item.title}<small>{item.description}</small></span>
 						<span aria-hidden="true">›</span>
 					</button>
@@ -93,7 +122,9 @@
 	input {background:#0b1420;border:1px solid #3a4a5e;color:#f3f6fa;border-radius:6px;padding:11px 13px;font-size:12px;width:100%}
 	.guide-list {margin:12px 0;max-height:205px;overflow-y:auto;border:1px solid #283b4f;border-radius:7px}
 	.guide-list button {display:flex;justify-content:space-between;align-items:center;gap:15px;width:100%;background:transparent;border:0;border-bottom:1px solid #283b4f;text-align:left;color:#e9f0f9;padding:11px;cursor:pointer}
-	.guide-list button:hover,.guide-list button.chosen {background:#31222e}
+	.guide-list button:hover,.guide-list button.chosen,.guide-list button.keyboard-active {background:#31222e}
+	.guide-list button.keyboard-active {box-shadow:inset 3px 0 #e66b83}
+	.keyboard-hint {font-size:10px;color:#a1b4c8;margin:8px 0 0;line-height:1.5}
 	.guide-list button span:first-child {font-size:12px;font-weight:800}
 	.guide-list button small {display:block;font-size:10px;color:#97aabd;font-weight:400;margin-top:5px;line-height:1.4}
 	.no-match {padding:12px;color:#afc0d1;font-size:12px}

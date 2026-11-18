@@ -563,6 +563,7 @@ def response_request_json(row: sqlite3.Row) -> dict:
         "requestedAt": row["requested_at"],
         "reviewedBy": row["reviewed_by"], "reviewedAt": row["reviewed_at"],
         "liveExecution": False,
+        "dryRunRecorded": bool(row["receipt_id"]) if "receipt_id" in row.keys() else False,
     }
 
 
@@ -1306,6 +1307,205 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
 
     # Detection Engineering remains strictly synthetic: manual rule evaluation
     # over already-stored fictional batches, no always-on detector or response.
+
+    # Response Centre training workflow. Proposals and simulated approvals are
+    # recordkeeping only. No connectors, commands or endpoint controls exist.
+
+    @app.get("/api/tenants/{tenant_id}/lab/response-playbooks")
+    def list_response_playbooks(tenant_id: str, actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "response:playbooks")
+        return {"tenantId": tenant_id, "items": response_catalogue(),
+                "liveExecution": False}
+
+    @app.get("/api/tenants/{tenant_id}/lab/response-requests")
+    def list_response_requests(tenant_id: str, actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "response:list")
+        with connect(db_path) as db:
+            rows = db.execute(
+                "SELECT r.*, d.id AS receipt_id FROM response_requests r "
+                "LEFT JOIN response_dry_run_receipts d "
+                "ON d.tenant_id=r.tenant_id AND d.request_id=r.id "
+                "WHERE r.tenant_id=? ORDER BY r.requested_at DESC,r.id DESC LIMIT 100",
+                (tenant_id,),
+            ).fetchall()
+        audit(actor, tenant_id, "response:list", "allowed")
+        return {"tenantId": tenant_id,
+                "items": [response_request_json(row) for row in rows],
+                "liveExecution": False}
+
+    @app.post("/api/tenants/{tenant_id}/lab/response-requests", status_code=201)
+    def propose_response(tenant_id: str, body: ProposeResponse, response: Response,
+                         actor: str = Depends(csrf_actor)):
+        analyst_scope(actor, tenant_id, "response:propose")
+        with connect(db_path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            previous = db.execute(
+                "SELECT * FROM response_requests WHERE tenant_id=? AND idempotency_key=?",
+                (tenant_id, body.idempotencyKey),
+            ).fetchone()
+            if previous is not None:
+                if (previous["incident_id"] != body.incidentId
+                        or previous["playbook_id"] != body.playbookId
+                        or previous["rationale"] != body.reason
+                        or previous["requested_by"] != actor):
+                    raise HTTPException(409, "This request key was used for another proposal.")
+                response.status_code = 200
+                return {"replayed": True, **response_request_json(previous)}
+            incident = db.execute(
+                "SELECT 1 FROM incidents WHERE tenant_id=? AND id=?",
+                (tenant_id, body.incidentId),
+            ).fetchone()
+            if incident is None:
+                raise HTTPException(404, "Incident not found in this organisation.")
+            if db.execute(
+                "SELECT COUNT(*) FROM response_requests WHERE tenant_id=?",
+                (tenant_id,),
+            ).fetchone()[0] >= 100:
+                raise HTTPException(429, "Local response proposal limit reached.")
+            now = datetime.now(timezone.utc).isoformat()
+            req_id = "RSP-" + secrets.token_hex(6).upper()
+            db.execute(
+                "INSERT INTO response_requests "
+                "(id,tenant_id,incident_id,playbook_id,rationale,idempotency_key,"
+                "requested_by,requested_at) VALUES (?,?,?,?,?,?,?,?)",
+                (req_id, tenant_id, body.incidentId, body.playbookId,
+                 body.reason, body.idempotencyKey, actor, now),
+            )
+            db.execute(
+                "INSERT INTO response_request_history"
+                "(tenant_id,request_id,actor,action,reason,version,at)"
+                " VALUES (?,?,?,?,?,?,?)",
+                (tenant_id, req_id, actor, "proposed", body.reason, 1, now),
+            )
+            db.execute(
+                "INSERT INTO audit_events(actor,tenant_id,operation,outcome,target,occurred_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (actor, tenant_id, "response:propose", "allowed", req_id, now),
+            )
+            row = db.execute(
+                "SELECT * FROM response_requests WHERE tenant_id=? AND id=?",
+                (tenant_id, req_id),
+            ).fetchone()
+        return {"replayed": False, **response_request_json(row)}
+
+    @app.post("/api/tenants/{tenant_id}/lab/response-requests/{request_id}/decision")
+    def decide_response(tenant_id: str, request_id: str, body: DecideResponse,
+                        actor: str = Depends(csrf_actor)):
+        role = scoped(actor, tenant_id, "response:decision")
+        if role != "soc_lead":
+            raise HTTPException(403, "Independent SOC lead approval required.")
+        with connect(db_path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            proposal = db.execute(
+                "SELECT * FROM response_requests WHERE tenant_id=? AND id=?",
+                (tenant_id, request_id),
+            ).fetchone()
+            if proposal is None:
+                raise HTTPException(404, "Not found.")
+            if proposal["requested_by"] == actor:
+                raise HTTPException(403, "A lead cannot approve their own proposal.")
+            if proposal["version"] != body.expectedVersion:
+                raise HTTPException(409, "Proposal changed. Refresh before deciding.")
+            if proposal["status"] != "pending":
+                raise HTTPException(409, "This proposal has already been decided.")
+            now = datetime.now(timezone.utc).isoformat()
+            status = "approved_dry_run" if body.decision == "approve_dry_run" else "rejected"
+            db.execute(
+                "UPDATE response_requests SET status=?,version=version+1,"
+                "reviewed_by=?,reviewed_at=? "
+                "WHERE tenant_id=? AND id=? AND version=?",
+                (status, actor, now, tenant_id, request_id, body.expectedVersion),
+            )
+            db.execute(
+                "INSERT INTO response_request_history"
+                "(tenant_id,request_id,actor,action,reason,version,at)"
+                " VALUES (?,?,?,?,?,?,?)",
+                (tenant_id, request_id, actor, status, body.reason,
+                 body.expectedVersion + 1, now),
+            )
+            db.execute(
+                "INSERT INTO audit_events(actor,tenant_id,operation,outcome,target,occurred_at)"
+                " VALUES (?,?,?,?,?,?)",
+                (actor, tenant_id, "response:decision", "allowed", request_id, now),
+            )
+            row = db.execute(
+                "SELECT * FROM response_requests WHERE tenant_id=? AND id=?",
+                (tenant_id, request_id),
+            ).fetchone()
+        return response_request_json(row)
+
+    @app.post("/api/tenants/{tenant_id}/lab/response-requests/{request_id}/simulate")
+    def simulate_approved_response(tenant_id: str, request_id: str,
+                                   body: SimulateResponse,
+                                   actor: str = Depends(csrf_actor)):
+        role = scoped(actor, tenant_id, "response:simulate")
+        if role != "soc_lead":
+            raise HTTPException(403, "SOC lead role required for dry-run receipt.")
+        with connect(db_path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            proposal = db.execute(
+                "SELECT * FROM response_requests WHERE tenant_id=? AND id=?",
+                (tenant_id, request_id),
+            ).fetchone()
+            if proposal is None:
+                raise HTTPException(404, "Not found.")
+            if proposal["version"] != body.expectedVersion:
+                raise HTTPException(409, "Proposal changed. Refresh before simulating.")
+            if proposal["status"] != "approved_dry_run":
+                raise HTTPException(409, "Only independently approved dry-runs can be recorded.")
+            receipt = db.execute(
+                "SELECT * FROM response_dry_run_receipts WHERE tenant_id=? AND request_id=?",
+                (tenant_id, request_id),
+            ).fetchone()
+            if receipt is None:
+                now = datetime.now(timezone.utc).isoformat()
+                result = "Training receipt only. No external systems contacted or actions executed."
+                db.execute(
+                    "INSERT INTO response_dry_run_receipts"
+                    "(tenant_id,request_id,simulated_by,simulated_at,result)"
+                    " VALUES (?,?,?,?,?)",
+                    (tenant_id, request_id, actor, now, result),
+                )
+                db.execute(
+                    "INSERT INTO response_request_history"
+                    "(tenant_id,request_id,actor,action,reason,version,at)"
+                    " VALUES (?,?,?,?,?,?,?)",
+                    (tenant_id, request_id, actor, "dry_run_recorded", result,
+                     body.expectedVersion, now),
+                )
+                db.execute(
+                    "INSERT INTO audit_events(actor,tenant_id,operation,outcome,target,occurred_at)"
+                    " VALUES (?,?,?,?,?,?)",
+                    (actor, tenant_id, "response:dry_run", "allowed", request_id, now),
+                )
+                receipt = db.execute(
+                    "SELECT * FROM response_dry_run_receipts WHERE tenant_id=? AND request_id=?",
+                    (tenant_id, request_id),
+                ).fetchone()
+        return {
+            "tenantId": tenant_id, "requestId": request_id,
+            "receiptId": receipt["id"], "recordedBy": receipt["simulated_by"],
+            "recordedAt": receipt["simulated_at"], "result": receipt["result"],
+            "liveExecution": False, "externalActions": 0,
+        }
+
+    @app.get("/api/tenants/{tenant_id}/lab/response-requests/{request_id}/history")
+    def response_request_history(tenant_id: str, request_id: str,
+                                 actor: str = Depends(current_actor)):
+        analyst_scope(actor, tenant_id, "response:history")
+        with connect(db_path) as db:
+            if db.execute(
+                "SELECT 1 FROM response_requests WHERE tenant_id=? AND id=?",
+                (tenant_id, request_id),
+            ).fetchone() is None:
+                raise HTTPException(404, "Not found.")
+            rows = db.execute(
+                "SELECT actor,action,reason,version,at FROM response_request_history "
+                "WHERE tenant_id=? AND request_id=? ORDER BY id ASC LIMIT 100",
+                (tenant_id, request_id),
+            ).fetchall()
+        return {"tenantId": tenant_id, "requestId": request_id,
+                "items": [dict(row) for row in rows]}
 
     @app.get("/api/tenants/{tenant_id}/lab/detection-templates")
     def detection_templates(tenant_id: str, actor: str = Depends(current_actor)):

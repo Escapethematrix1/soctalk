@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GUIDE, getGuide, lookupGuide } from './platform-guide';
+import { GUIDE, getGuide, lookupGuide, resolveGuideDestination } from './platform-guide';
 
 describe('RH Sentry navigation knowledge', () => {
 	it('contains unique, complete destinations and an explicit next step', () => {
@@ -24,6 +24,19 @@ describe('RH Sentry navigation knowledge', () => {
 	it('locates event batches and experimental detections', () => {
 		expect(lookupGuide('Wazuh synthetic logs')[0].view).toBe('Event Pipeline');
 		expect(lookupGuide('false positive rule testing')[0].view).toBe('Detection Engineering');
+	});
+	it('pressing Enter opens the highest-ranked result', () => {
+		expect(resolveGuideDestination('approve response')).toBe('Response Centre');
+		expect(resolveGuideDestination('register an asset')).toBe('Assets');
+	});
+	it('keyboard choice navigates another result and fails safely on empty or unmatched text', () => {
+		const matches = lookupGuide('response playbook');
+		expect(matches.length).toBeGreaterThan(1);
+		expect(resolveGuideDestination('response playbook', 1)).toBe(matches[1].view);
+		expect(resolveGuideDestination('')).toBeNull();
+		expect(resolveGuideDestination('unknownunmatchedxyz')).toBeNull();
+		expect(resolveGuideDestination('approve response', 50)).toBeNull();
+		expect(resolveGuideDestination('approve response', -1)).toBeNull();
 	});
 	it('never invents destinations', () => {
 		expect(lookupGuide('unrelated nonexistent feature xyzabcabc')).toEqual([]);

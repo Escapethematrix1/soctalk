@@ -101,6 +101,11 @@ def test_separation_of_duties_lead_approval_and_dry_run_receipt(lab):
     assert "No external systems contacted" in receipt.json()["result"]
     replay=simulate(client,lead_csrf,rid)
     assert replay.json()["receiptId"]==receipt.json()["receiptId"]
+    analyst_again=login(client,"alderwick-analyst")
+    replay_original=propose(client,analyst_again,playbook="endpoint_isolation")
+    assert replay_original.status_code==200, replay_original.text
+    assert replay_original.json()["dryRunRecorded"] is True
+    assert replay_original.json()["status"]=="approved_dry_run"
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT COUNT(*) FROM response_dry_run_receipts").fetchone()[0]==1
         assert conn.execute("SELECT COUNT(*) FROM incidents").fetchone()[0]==6

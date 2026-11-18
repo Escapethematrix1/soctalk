@@ -105,8 +105,10 @@
 				throw new Error('Wrong organisation or provenance from the API. Response records withheld.');
 			}
 			requests = result.items;
-			selectedId = requests.some((item) => item.id === priorId) ?
-				priorId : (requests.find((item) => item.status === 'pending')?.id ?? requests[0]?.id ?? '');
+			const visible = filter === 'pending'
+				? requests.filter((item) => item.status === 'pending') : requests;
+			selectedId = visible.some((item) => item.id === priorId)
+				? priorId : (visible[0]?.id ?? '');
 			if (selectedId) await refreshHistory();
 		} catch (err) {
 			if (disposed || generation !== cycle) return;
@@ -213,6 +215,14 @@
 		showProposalForm = false;
 		filter = 'pending';
 		void loadCustomer();
+	}
+	function setFilter(next: 'pending' | 'all') {
+		filter = next;
+		const visible = next === 'pending'
+			? requests.filter((item) => item.status === 'pending') : requests;
+		if (!visible.some((item) => item.id === selectedId)) {
+			selectRequest(visible[0]?.id ?? '');
+		}
 	}
 	function selectRequest(id: string) {
 		selectedId = id;
@@ -350,8 +360,8 @@
 				<div class="section-head">
 					<div><span class="eyebrow">STEP 2 / REVIEW</span><h3>Work queue</h3></div>
 					<div class="filters">
-						<button type="button" class:active={filter === 'pending'} on:click={() => (filter = 'pending')}>Needs decision</button>
-						<button type="button" class:active={filter === 'all'} on:click={() => (filter = 'all')}>All</button>
+						<button type="button" class:active={filter === 'pending'} on:click={() => setFilter('pending')}>Needs decision</button>
+						<button type="button" class:active={filter === 'all'} on:click={() => setFilter('all')}>All</button>
 					</div>
 				</div>
 				{#each shownRequests as proposal (proposal.id)}

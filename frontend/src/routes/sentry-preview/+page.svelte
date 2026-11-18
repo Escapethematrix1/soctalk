@@ -4,6 +4,10 @@
 	import AnalystWorkspace from '$lib/components/sentry/AnalystWorkspace.svelte';
 	import CustomerPortfolio from '$lib/components/sentry/CustomerPortfolio.svelte';
 	import ResponseCentre from '$lib/components/sentry/ResponseCentre.svelte';
+	import LocalResponseCentre from '$lib/components/sentry/LocalResponseCentre.svelte';
+	import PlatformGuide from '$lib/components/sentry/PlatformGuide.svelte';
+	import { getGuide } from '$lib/sentry-contracts/platform-guide';
+	import type { SentryView } from '$lib/sentry-contracts/platform-guide';
 	import DetectionEngineering from '$lib/components/sentry/DetectionEngineering.svelte';
 	import PlatformSecurity from '$lib/components/sentry/PlatformSecurity.svelte';
 	import ApiLab from '$lib/components/sentry/ApiLab.svelte';
@@ -16,7 +20,7 @@
 	// RH Sentry product-design sandbox. Core modules use simulated data.
 	// The optional API Lab is explicitly local-only; no real-world SOC response
 	// actions, production accounts, or live security integrations are connected.
-	type View = 'Overview' | 'Customers' | 'Incidents' | 'AI Analyst' | 'Response Centre' | 'Detection Engineering' | 'Event Pipeline' | 'Security Architecture' | 'API Lab' | 'Assets' | 'Reports';
+	type View = SentryView;
 	const seed: Incident[] = [
 		{
 			id: 'SEN-2048',
@@ -117,6 +121,8 @@
 		{ name: 'Assets', short: 'AS', description: 'Environment coverage' },
 		{ name: 'Reports', short: 'RP', description: 'Security intelligence' }
 	];
+	const dailyNav = nav.filter((item) => getGuide(item.name).category === 'daily');
+	const advancedNav = nav.filter((item) => getGuide(item.name).category === 'advanced');
 	const assets = [
 		{ name: 'WIN-DEMO-07', type: 'Windows workstation', agent: 'Connected', risk: 'Elevated', group: 'Endpoints' },
 		{ name: 'LNX-DEMO-03', type: 'Linux server', agent: 'Connected', risk: 'Low', group: 'Servers' },
@@ -141,6 +147,7 @@
 	let decisions: Record<string, 'Reviewed — proposed' | 'Rejected — no action'> = {};
 	let briefingGenerated = false;
 	let menuOpen = false;
+	let advancedOpen = false;
 	let incidentDataMode: 'simulated' | 'local' = 'simulated';
 	let localTenantId = '';
 	let localCaseId = '';
@@ -156,6 +163,7 @@
 	$: highCases = incidents.filter((i) => i.severity === 'High').length;
 	function selectView(next: View) {
 		view = next;
+		if (getGuide(next).category === 'advanced') advancedOpen = true;
 		menuOpen = false;
 	}
 	function handleLabSessionChange(next: { user: string; csrf: string } | null) {
@@ -246,9 +254,9 @@
 			<div class="brand-name"><span class="brand-rh"><span class="brand-r">R</span><span class="brand-h">H</span></span> <span class="brand-word">SENTRY</span><span class="brand-dot">.</span></div>
 			<div class="brand-subtitle">SECURITY OPERATIONS PLATFORM</div>
 		</div>
-		<div class="sidebar-section-label">WORKSPACE</div>
-		<nav class="sidebar-nav" aria-label="Product navigation">
-			{#each nav as item}
+		<div class="sidebar-section-label">CORE WORK</div>
+		<nav class="sidebar-nav" aria-label="Core navigation">
+			{#each dailyNav as item}
 				<button type="button" class:active={view === item.name} aria-current={view === item.name ? 'page' : undefined} on:click={() => selectView(item.name)}>
 					<span class="nav-icon" aria-hidden="true">{item.short}</span>
 					<span class="nav-copy"><strong>{item.name === 'Overview' ? 'Command Centre' : item.name}</strong><small>{item.description}</small></span>
@@ -256,6 +264,21 @@
 				</button>
 			{/each}
 		</nav>
+		<button type="button" class="advanced-toggle" aria-expanded={advancedOpen}
+			on:click={() => (advancedOpen = !advancedOpen)}>
+			{advancedOpen ? '−' : '+'} Advanced tools <span aria-hidden="true">{advancedOpen ? '⌃' : '⌄'}</span>
+		</button>
+		{#if advancedOpen}
+			<nav class="sidebar-nav" aria-label="Advanced tools navigation">
+				{#each advancedNav as item}
+					<button type="button" class:active={view === item.name} aria-current={view === item.name ? 'page' : undefined} on:click={() => selectView(item.name)}>
+						<span class="nav-icon" aria-hidden="true">{item.short}</span>
+						<span class="nav-copy"><strong>{item.name}</strong><small>{item.description}</small></span>
+						<span class="nav-caret" aria-hidden="true">›</span>
+					</button>
+				{/each}
+			</nav>
+		{/if}
 		<div class="sidebar-bottom">
 			<div class="sidebar-status"><span class="status-dot amber"></span><div><strong>Development workspace</strong><small>No sensors connected</small></div></div>
 			<div class="sidebar-footer">RH SENTRY <span>/</span> BUILD 0.1 PREVIEW</div>
@@ -275,7 +298,8 @@
 				<div class="breadcrumbs">PLATFORM <span>/</span> <strong>{view === 'Overview' ? 'COMMAND CENTRE' : view.toUpperCase()}</strong></div>
 			</div>
 			<div class="topbar-actions">
-				<div class="signal-tag"><span class="status-dot amber"></span> DATA SOURCE: {((view === 'Overview' || view === 'Incidents' || view === 'AI Analyst' || view === 'Assets' || view === 'Detection Engineering') && incidentDataMode === 'local') || view === 'Event Pipeline' ? 'LOCAL SQLITE LAB · SYNTHETIC' : 'SIMULATED'}</div>
+				<PlatformGuide currentView={view} onNavigate={selectView} />
+				<div class="signal-tag"><span class="status-dot amber"></span> DATA SOURCE: {((view === 'Overview' || view === 'Incidents' || view === 'AI Analyst' || view === 'Assets' || view === 'Detection Engineering' || view === 'Response Centre') && incidentDataMode === 'local') || view === 'Event Pipeline' ? 'LOCAL SQLITE LAB · SYNTHETIC' : 'SIMULATED'}</div>
 				<div class="avatar" aria-label="Demonstration operator">RH</div>
 			</div>
 		</header>
@@ -288,12 +312,16 @@
 					<p>{view === 'Overview' ? 'A single view of the signals that matter. Investigate with context. Respond with control.' : view === 'Incidents' ? 'Prioritised investigations and evidence-first incident management.' : view === 'Customers' ? 'Manage customer context, scoped incident views and the future SaaS experience.' : view === 'AI Analyst' ? 'Intelligence that explains its reasoning and keeps analysts in control.' : view === 'Response Centre' ? 'Review proposed defensive actions, control approvals and explore sample response playbooks.' : view === 'Detection Engineering' ? 'Explore example detection rules, validate synthetic events and understand monitoring blind spots.' : view === 'Event Pipeline' ? 'Generate fictional telemetry, inspect provenance and review explainable lab correlations.' : view === 'Security Architecture' ? 'Design customer boundaries, least-privilege access and human response approval policies.' : view === 'API Lab' ? 'Explore the isolated localhost API with fictional customer identities, persistent records and server-side tenant checks.' : view === 'Assets' ? 'A clear view of the systems your future SOC will protect.' : 'Decision-ready intelligence for security leaders and clients.'}</p>
 				</div>
 				<div class="heading-actions">
-					<button type="button" class="button-secondary" on:click={() => selectView('Reports')}>View briefing <span>↗</span></button>
-					<button type="button" class="button-primary" on:click={injectAlert}>+ Inject demo alert</button>
+					<button type="button" class="button-secondary" on:click={() => selectView(getGuide(view).next ?? 'Overview')}>
+						Next: {getGuide(view).nextLabel} <span>↗</span>
+					</button>
+					{#if view === 'Overview' && incidentDataMode === 'simulated'}
+						<button type="button" class="button-primary" on:click={injectAlert}>+ Inject demo alert</button>
+					{/if}
 				</div>
 			</div>
 
-			{#if view === 'Overview' || view === 'Incidents' || view === 'AI Analyst' || view === 'Assets' || view === 'Detection Engineering'}
+			{#if view === 'Overview' || view === 'Incidents' || view === 'AI Analyst' || view === 'Assets' || view === 'Detection Engineering' || view === 'Response Centre'}
 				<div class="data-source-selector" aria-label="Incident data source">
 					<div>
 						<strong>Workspace data source</strong>
@@ -436,8 +464,13 @@
 					onOpenApiLab={openLocalApiLab} onSwitchWorkspace={openCompanionLocalWorkspace}/>
 			{/if}
 
-			{#if view === 'Response Centre'}
+			{#if view === 'Response Centre' && incidentDataMode === 'simulated'}
 				<ResponseCentre {incidents} {analysed} bind:decisions bind:selectedId onInvestigate={openInvestigation} />
+			{/if}
+			{#if view === 'Response Centre' && incidentDataMode === 'local'}
+				<LocalResponseCentre bind:selectedTenantId={localTenantId}
+					csrf={labSession?.csrf ?? ''} labSessionUser={labSession?.user ?? ''}
+					onOpenApiLab={openLocalApiLab} onOpenCase={openPipelineCase}/>
 			{/if}
 
 			{#if view === 'Detection Engineering' && incidentDataMode === 'simulated'}
@@ -502,6 +535,10 @@
 	.brand-name .brand-dot { color: #e33247; letter-spacing: 0; }
 	.brand-subtitle { font-size: 9px; font-weight: 700; letter-spacing: .13em; color: #9da7b5; margin-top: 11px; }
 	.sidebar-section-label { font-size: 10px; color: #677386; letter-spacing: .16em; font-weight: 800; padding: 0 15px 17px; }
+	.advanced-toggle { display:flex; justify-content:space-between; align-items:center; width:100%; color:#a5b6c9; background:transparent; border:1px solid #2e3c4d; border-radius:7px; padding:12px 13px; cursor:pointer; font-size:11px; font-weight:750; margin:13px 0; }
+	.advanced-toggle:hover {color:#edf3fa; border-color:#755163; }
+	.advanced-toggle span { color:#d4788e; }
+
 	.sidebar-nav { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
 	.sidebar-nav button { border: 1px solid transparent; text-align: left; border-radius: 9px; display: flex; align-items: center; gap: 12px; padding: 13px 11px; background: transparent; color: #8f9cac; transition: background .2s, border-color .2s; width: 100%; }
 	.sidebar-nav button:hover { background: #18202d; }

@@ -32,9 +32,9 @@ export const GUIDE: readonly GuideEntry[] = [
 	},
 	{
 		view: 'Incidents', title: 'Incidents', category: 'daily',
-		description: 'Review investigations, assignments and recorded case evidence.',
-		terms: ['case', 'cases', 'alert queue', 'triage', 'evidence', 'assign analyst', 'incident history'],
-		steps: ['Open Incidents', 'Choose Local API / SQLite to view saved cases', 'Select a customer and case', 'Review evidence, status and assignment'],
+		description: 'Work through each fictional case: understand, collect evidence, decide, then plan a response.',
+		terms: ['case', 'cases', 'alert queue', 'triage', 'evidence', 'assign analyst', 'incident history', 'investigation next step', 'case workflow'],
+		steps: ['Open Incidents', 'Choose Local API / SQLite and an authorised customer', 'Select a case from the prioritised queue', 'Follow Understand → Evidence → Decide → Respond', 'Use the highlighted Recommended next step to focus on what needs attention'],
 		requiresAnalyst: false, next: 'Response Centre', nextLabel: 'Plan a response',
 	},
 	{

@@ -247,3 +247,39 @@ Controls: fixed rule strategies, strict request schemas, bounded thresholds and 
 8. Switch back to Simulation and verify the original demonstration is unchanged. On Assets, + Register Asset appears in the upper toolbar for analysts with the form directly below the customer selector.
 
 Backend checks: .\.venv\Scripts\python.exe -m pytest -q tests. Frontend checks: from frontend run pnpm check and pnpm exec vitest run src/lib/sentry-contracts src/lib/sentry-demo src/lib/sentry-lab.
+
+
+## Response Centre: fictional proposals, independent approvals and dry-run receipts
+
+**Execution remains impossible by design in this local API.** This adds structured, durable workflow records, not real defensive action or SOC staffing.
+
+All paths below have the prefix \`/api/tenants/{tenantId}/lab\` and must pass server-side tenant membership checks:
+
+| Method | Path | Role / effect |
+| --- | --- | --- |
+| GET | /response-playbooks | SOC analyst/lead; four allowlisted, non-executable playbooks |
+| GET | /response-requests | SOC analyst/lead; ordered pending and completed proposals for one tenant |
+| POST | /response-requests | SOC analyst/lead + CSRF; store a proposal against an existing tenant-owned incident with an idempotency key |
+| POST | /response-requests/{id}/decision | **Independent SOC lead** + CSRF + version; approve *dry-run only* or reject, with a reason |
+| POST | /response-requests/{id}/simulate | SOC lead + CSRF + version; store a simulated receipt only if previously approved |
+| GET | /response-requests/{id}/history | SOC analyst/lead; read append-only decision and receipt history |
+
+No proposal may refer to another tenant's incident. A lead cannot approve their own proposal. Requests do not change incidents or detection findings. SQL tenant-bound foreign keys, record version checks, audit records and a 100-proposal-per-tenant training limit apply. API outputs always report \`liveExecution: false\`; dry-run receipts always report \`externalActions: 0\`.
+
+### Local acceptance
+
+1. Pull the \`dev/rh-one\` development branch in the soctalk root, preserving any local edits.
+2. Restart **Python backend** (Ctrl+C then \`.\.venv\Scripts\python.exe run.py\` under \`dev\rh_sentry_lab_api\`) so SQLite creates the new tables without resetting cases or assets. Reuse your existing temporary lab password in that terminal.
+3. Keep **frontend** on \`127.0.0.1:5173\`, and open \`http://127.0.0.1:5173/sentry-preview\`.
+4. Sign in through **API Lab** as fictional \`alderwick-analyst\`. RH Sentry defaults to local persisted mode. Open **Response Centre → Local API / SQLite**.
+5. Use **+ Propose response**. Select case \`SEN-2048\` and the **Verify unusual sign-in** template. Give a 15+ character reason and save. The new proposal should be pending.
+6. Log out of API Lab, sign in as fictional \`alderwick-lead\`, return to Response Centre and select the proposal. Document an independent approval/rejection reason.
+7. After approving a **dry-run**, use **Record dry-run receipt**. Verify the receipt shows zero external actions, no case changes, and an audit history. Refresh or restart the backend: the saved decision should remain.
+8. Sign in as \`alderwick-viewer\` to confirm internal Response Centre records are restricted. Switch to **Simulation** to verify the earlier visual demonstration remains available.
+9. Use global **Find a feature** and search for \`approve response\` or \`register asset\`. Verify it shows the corresponding real steps and opens the intended page. On initial launch, the sidebar displays only five core sections; toggle **Advanced tools** for engineering and lab screens.
+
+Automated validation: \`.\.venv\Scripts\python.exe -m pytest -q tests\`. The frontend CI exercises Svelte typechecking and navigation registry/unit tests. This is **not production-ready**; VMs and Wazuh are deferred until the full software and security infrastructure is built.
+
+### Future AI Analyst navigation tool
+
+The versioned frontend registry lives at \`frontend/src/lib/sentry-contracts/platform-guide.ts\`. Future AI-enabled navigation must use that reviewed source or a server-issued equivalent, resolve the currently authorised tenant and role, and answer with an actual available destination. The current guide is searchable **deterministic UI help**, not an LLM, and should not be represented to customers as live AI.

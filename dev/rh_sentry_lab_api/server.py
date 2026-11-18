@@ -1126,6 +1126,74 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
         return incident_json(row)
 
 
+    @app.get("/api/tenants/{tenant_id}/incidents/{incident_id}/work-context")
+    def incident_work_context(tenant_id: str, incident_id: str,
+                              actor: str = Depends(current_actor)):
+        """Fictional analyst-only context for an evidence-first case workflow.
+
+        All joins are constrained to the authenticated tenant. A stored note
+        is not verified telemetry, and a proposed response is never execution.
+        """
+        analyst_scope(actor, tenant_id, "incident:work_context")
+        with connect(db_path) as db:
+            incident = db.execute(
+                "SELECT id,tenant_id,title,severity,status,version,assigned_to "
+                "FROM incidents WHERE tenant_id=? AND id=?",
+                (tenant_id, incident_id),
+            ).fetchone()
+            if incident is None:
+                raise HTTPException(404, "Not found.")
+            evidence_notes = db.execute(
+                "SELECT COUNT(*) FROM incident_evidence "
+                "WHERE tenant_id=? AND incident_id=? AND kind='analyst_note'",
+                (tenant_id, incident_id),
+            ).fetchone()[0]
+            assets = db.execute(
+                "SELECT a.id,a.display_name,a.asset_type,a.criticality,a.lifecycle "
+                "FROM asset_incident_links l JOIN assets a "
+                "ON a.id=l.asset_id AND a.tenant_id=l.tenant_id "
+                "WHERE l.tenant_id=? AND l.incident_id=? "
+                "ORDER BY a.display_name LIMIT 50",
+                (tenant_id, incident_id),
+            ).fetchall()
+            proposals = db.execute(
+                "SELECT r.id,r.status,r.playbook_id,r.requested_by,r.reviewed_by,"
+                "d.id AS receipt_id FROM response_requests r "
+                "LEFT JOIN response_dry_run_receipts d "
+                "ON d.tenant_id=r.tenant_id AND d.request_id=r.id "
+                "WHERE r.tenant_id=? AND r.incident_id=? "
+                "ORDER BY r.requested_at DESC,r.id DESC LIMIT 50",
+                (tenant_id, incident_id),
+            ).fetchall()
+            history_count = db.execute(
+                "SELECT COUNT(*) FROM incident_history "
+                "WHERE tenant_id=? AND incident_id=?", (tenant_id, incident_id),
+            ).fetchone()[0]
+        audit(actor, tenant_id, "incident:work_context", "allowed", incident_id)
+        return {
+            "tenantId": tenant_id,
+            "incidentId": incident_id,
+            "incidentVersion": incident["version"],
+            "evidence": {"analystNoteCount": evidence_notes,
+                         "verifiedTelemetryCount": 0},
+            "assets": [{
+                "id": a["id"], "displayName": a["display_name"],
+                "assetType": a["asset_type"], "criticality": a["criticality"],
+                "lifecycle": a["lifecycle"], "monitoringState": "not_connected",
+            } for a in assets],
+            "responses": {
+                "pending": sum(1 for r in proposals if r["status"] == "pending"),
+                "approvedDryRun": sum(1 for r in proposals if r["status"] == "approved_dry_run"),
+                "rejected": sum(1 for r in proposals if r["status"] == "rejected"),
+                "recordedDryRuns": sum(1 for r in proposals if r["receipt_id"] is not None),
+            },
+            "caseChangeCount": history_count,
+            "dataSource": "local-sqlite-fictional",
+            "liveTelemetry": False,
+            "aiInference": False,
+            "responseExecution": False,
+        }
+
     # RH Sentry local incident-management proof of concept:
     # All mutations require a server-authenticated analyst and session-bound CSRF.
     # The original SocTalk API and all live systems remain untouched.

@@ -18,7 +18,7 @@ Each gate requires reviewable UI, documented API/database contracts, automated u
 | 4. Trusted telemetry contract | Immutable source provenance, authenticated service/tenant mapping, deduplication, ingest batching, retry queues, retention | *Offline fictional parsers only* | Synthetic event collector and back-pressure exercised in isolated integration tests; **no VM yet** |
 | 5. Incident/evidence operations | Case intake, state machine, severity, assignment, notes, case/evidence chain-of-custody, search, escalations | Basic SQLite local lab works | Persistent approvals, tenant-safe evidence, concurrent writes, governance and audit tests |
 | 6. Analyst/AI reasoning | Evidence retrieval, constrained prompts, model abstraction, explainable findings, uncertainty and human review | Pre-authored AI demo; **no actual model** | Structured evaluation on synthetic investigations, prompt-injection tests, clear provenance, no autonomous action |
-| 7. Response Centre | Playbook registry, proposals, approvals, simulation executor, explicit human overrides and rollback | Demo approval UI only | No live execution; signed approval/rejection and deterministic dry-run state tests |
+| 7. Response Centre | Playbook registry, proposals, approvals, simulation receipts, explicit separation of duties | **Local SQLite workflow implemented; browser acceptance pending; no real executor** | End-to-end operator acceptance, escalation/rollback planning and production-grade signed approvals before real integration |
 | 8. Reporting/customer portal | Persistent tenant scoped dashboards, executive and technical reports, customer permissions, export redaction | Demo reporting and customer portfolio | Cross-tenant/report export tests; downloadable signed-off reports and data minimisation |
 | 9. SaaS platform foundation | Private Red Horizon repository, build pipeline, production IAM/MFA, session management, tenant DB enforcement, audit logging, backup/restore, monitoring/observability | Early role demo and lab-only shared-password auth | External security review, independent tenant isolation penetration tests, recovery drills |
 | 10. Final system integration | Isolated Wazuh appliance in VirtualBox, synthetic agent traffic, trusted collector, end-to-end investigation, outage/performance tests | **Not started by design** | Verified Wazuh→collector→rule→incident→analyst→report flow, zero cross-tenant leakage |
@@ -73,3 +73,24 @@ All rule internals are SOC-analyst-only and all writes are CSRF protected. Stric
 The Assets control to **Register Asset** also moved to the header, and the registration form now opens immediately beneath the authorised tenant selector.
 
 **Still outstanding:** browser acceptance; production IAM and deployment; real source/tenant attestation; detection efficacy testing; rule lifecycle governance; full case management from findings; alerts and notification delivery; reliable telemetry queues; operational human response workflows. Wazuh/VirtualBox remains deferred to the final integration stage.
+
+
+### Gate 7 progress: streamlined Response Centre and platform navigation (18 November 2026)
+
+**Operator simplicity is now a product requirement** rather than a cosmetic preference:
+
+- Sidebar prioritises five core sections (Command Centre, Incidents, Response Centre, Assets and Reports). The six technical/admin sections live behind an explicit **Advanced tools** toggle, retaining access without clutter.
+- The page header now recommends one context-aware **Next** action, rather than showing an unrelated report action and demonstration alert injection on every page. Simulation injection remains only on the Command Centre design demo.
+- After a successful local API sign-in, RH Sentry selects persisted fictional-data mode by default; it does not silently fall back to simulation on sign-out.
+- **Find a feature** is a compact global, searchable task guide. A single reviewed catalogue at \`frontend/src/lib/sentry-contracts/platform-guide.ts\` defines all eleven destinations, real navigation steps, common search terms, next actions and analyst access warnings. The guide navigates to real UI views and clearly labels features not yet connected.
+- The future AI Analyst should read from this catalogue via an authorised navigation/retrieval service, confirm role/tenant permissions and give exact, version-aware destinations. It must **never invent page locations** or mistake a planned feature for an available one. Current help is **deterministic, not AI-powered**.
+
+The Response Centre now has **Simulation / Local API / SQLite** modes. The local version is a deliberately focused workflow:
+
+1. Analyst proposes an action against a tenant-owned, fictional incident using one of four non-executable playbooks.
+2. A **different** authorised SOC lead approves the **dry-run only** or rejects it, with a mandatory explanation.
+3. A lead may record an idempotent dry-run receipt. The backend has **no endpoint, account, shell, browser automation, network or notification executor** and reports zero external actions.
+
+All request histories and receipts persist in SQLite with authenticated, tenant-scoped queries, CSRF for writes, version checks, auditing, finite lab limits and tested separation of duties. Customer viewers cannot access the response queue. An approval is never equivalent to authorisation for a real system action. This is **local laboratory workflow only**, not a commercial SOC playbook engine.
+
+**Outstanding:** browser acceptance, production IAM, timeout handling, per-customer roles/approval policies, response SLAs, escalation, playbook efficacy tests, richer audit integrity, signed approvals, reconciliation, rollback plans, case evidence handoff and connected response integrations. VirtualBox/Wazuh stays last for final E2E acceptance.

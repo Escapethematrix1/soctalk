@@ -30,9 +30,9 @@ describe('RH Sentry navigation knowledge', () => {
 		expect(resolveGuideDestination('register an asset')).toBe('Assets');
 	});
 	it('keyboard choice navigates another result and fails safely on empty or unmatched text', () => {
-		const matches = lookupGuide('response playbook');
+		const matches = lookupGuide('incident');
 		expect(matches.length).toBeGreaterThan(1);
-		expect(resolveGuideDestination('response playbook', 1)).toBe(matches[1].view);
+		expect(resolveGuideDestination('incident', 1)).toBe(matches[1].view);
 		expect(resolveGuideDestination('')).toBeNull();
 		expect(resolveGuideDestination('unknownunmatchedxyz')).toBeNull();
 		expect(resolveGuideDestination('approve response', 50)).toBeNull();

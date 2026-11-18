@@ -1153,7 +1153,7 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
                 "FROM asset_incident_links l JOIN assets a "
                 "ON a.id=l.asset_id AND a.tenant_id=l.tenant_id "
                 "WHERE l.tenant_id=? AND l.incident_id=? "
-                "ORDER BY a.display_name LIMIT 50",
+                "ORDER BY a.display_name",
                 (tenant_id, incident_id),
             ).fetchall()
             proposals = db.execute(
@@ -1162,7 +1162,7 @@ def create_app(db_path: Path, lab_password: str) -> FastAPI:
                 "LEFT JOIN response_dry_run_receipts d "
                 "ON d.tenant_id=r.tenant_id AND d.request_id=r.id "
                 "WHERE r.tenant_id=? AND r.incident_id=? "
-                "ORDER BY r.requested_at DESC,r.id DESC LIMIT 50",
+                "ORDER BY r.requested_at DESC,r.id DESC",
                 (tenant_id, incident_id),
             ).fetchall()
             history_count = db.execute(
